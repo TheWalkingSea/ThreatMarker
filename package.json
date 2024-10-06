@@ -1,0 +1,28 @@
+{
+  "name": "research",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "main": "tracer.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "trace": "node tracer.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TheWalkingSea/research-code.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/TheWalkingSea/research-code/issues"
+  },
+  "homepage": "https://github.com/TheWalkingSea/research-code#readme",
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "dependencies": {
+    "@babel/generator": "^7.25.7",
+    "@babel/parser": "^7.25.7"
+  }
+}
