@@ -3,7 +3,7 @@ import * as t from '@babel/types';
 import * as fs from 'node:fs';
 import traverse from '@babel/traverse';
 import generator from '@babel/generator';
-import { pathHandler } from './handler';
+import { pathHandler } from './lib/handler';
 import { NodePath } from '@babel/traverse';
 
 
