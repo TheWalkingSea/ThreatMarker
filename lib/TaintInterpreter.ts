@@ -202,21 +202,28 @@ export class TaintInterpreter {
                 ))
 
                 let block = test ? node.consequent : node.alternate
-                if (block) {
-                    this.eval(block, ctx);
-                }
+                if (!block) return;
 
-                // Any variables defined in the block that are defined in outer scope are tainted
+                this.eval(block); // Use new execCtx
+
+                // Algorithm: Any variables defined in the block that are defined in outer scope are tainted
                 let isolatedEnv = (this.callstack.pop() as ExecutionContext).environment;
                 let currentEnv = (this.callstack[this.callstack.length - 1] as ExecutionContext).environment;
                 isolatedEnv.record.forEach((value: TaintedLiteral, key: string, _) => {
-                    if (currentEnv.record.has(key)) {
-                        // @ts-expect-error - We checked if the key is in the record above
-                        currentEnv.record.get(key).assign({
+                    // If a var in inner scope is defined in the outer scope
+                    if (currentEnv.has(key)) {
+                        currentEnv.assign(key, {
+                            isTainted: true
+                        })
+
+                    // A var is defined using 'var' in inner scope
+                    // Only functions make boundries for 'var' not blocks like let so they leak into outer block definitions
+                    } else if (isolatedEnv.resolve(key).kind == 'var') {
+                        currentEnv.declare(key, 'var');
+                        currentEnv.assign(key, {
                             isTainted: true
                         })
                     }
-                    
                 })
 
 
