@@ -20,13 +20,13 @@ export class Environment {
         this.record.set(name, value);
     }
 
-    get(name: string): any {
+    resolve(name: string): any {
         if (this.record.get(name)) {
             return this.record.get(name);
         } else if (!this.parent) {
             throw new ReferenceException(name)
         } else {
-            this.parent.get(name);
+            return this.parent.resolve(name);
         }
     }
 }
