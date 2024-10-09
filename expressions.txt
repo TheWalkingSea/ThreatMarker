@@ -9,7 +9,7 @@
 'NullLiteral' ✔️
 'BooleanLiteral' ✔️
 'RegExpLiteral', ✔️
-'IfStatement',
+'IfStatement', ✔️
 'BlockStatement'
 'CallExpression',
 'FunctionExpression',
