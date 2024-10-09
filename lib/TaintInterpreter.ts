@@ -1,4 +1,6 @@
 import { ExecutionContext } from "./ExecutionContext";
+import { NotImplementedException } from "./NotImplementedException";
+import { ReferenceException } from "./ReferenceException";
 import { TaintedNode } from "./TaintedNode";
 import * as t from '@babel/types';
 
@@ -30,9 +32,12 @@ export class TaintInterpreter {
                 }
             }
 
-            // @ts-ignore
-            // Implemented most common literals
-            return node.value;
+            return {
+                // @ts-ignore
+                // Implemented most common literals
+                value: node.value,
+                isTainted: false
+            };
           }
 
           if (t.isVariableDeclaration(node)) {
@@ -42,17 +47,141 @@ export class TaintInterpreter {
           }
 
           if (t.isVariableDeclarator(node)) {
-            let id = this.eval(node.id);
+            let id = (this.eval(node.id) as TaintedLiteral).value;
+            ctx.environment.declare(id);
+
             if (node.init) {
-                let init = this.eval(node.init, ctx);
+                let init = this.eval(node.init, ctx) as TaintedLiteral;
                 ctx.environment.assign(id, init);
-            } else {
-                ctx.environment.declare(id);
             }
           }
 
           if (t.isIdentifier(node)) {
-            return ctx.environment.resolve(node.name);
+            try {
+                return ctx.environment.resolve(node.name);
+            } catch (e) {
+                if (e instanceof ReferenceException) {
+                    return {
+                        isTainted: true
+                    } // Tainted ! - Defined in browser, not in NodeJS
+                } else {
+                    throw e
+                }
+            }
+          }
+
+          if (t.isBinaryExpression(node)) {
+            let l = this.eval(node.left, ctx) as TaintedLiteral;
+            let r = this.eval(node.right, ctx) as TaintedLiteral;
+
+            if (l.isTainted || r.isTainted) return {
+                isTainted: true
+            } // Taintness is inherited
+
+
+            let left = l.value;
+            let right = r.value;
+
+            let value;
+            switch (node.operator) {
+                case '+':
+                    value = left + right;
+                case '-':
+                    value = left - right;
+                case '*':
+                    value = left * right;
+                case '/':
+                    value = left / right;
+                case '%':
+                    value = left % right;
+                case '**':
+                    value = left ** right;
+                case '&':
+                    value = left & right;
+                case '|':
+                    value = left | right;
+                case '>>':
+                    value = left >> right;
+                case '>>>':
+                    value = left >>> right;
+                case '<<':
+                    value = left << right;
+                case '^':
+                    value = left ^ right;
+                case '==':
+                    value = left == right;
+                case '===':
+                    value = left === right;
+                case '!=':
+                    value = left != right;
+                case '!==':
+                    value = left !== right;
+                case 'in':
+                    value = left in right;
+                case 'instanceof':
+                    value = left instanceof right;
+                case '>':
+                    value = left > right;
+                case '<':
+                    value = left < right;
+                case '>=':
+                    value = left >= right;
+                case '<=':
+                    value = left <= right;
+                case '|>':
+                    throw new NotImplementedException('|> is not implemented');
+            }
+
+
+            // Code is reachable unless there is an exception - Ignore linter
+            return {
+                value: value,
+                isTainted: false
+            }
+          }
+
+          if (t.isEmptyStatement(node)) return;
+
+          if (t.isSequenceExpression(node)) {
+            let value;
+            node.expressions.forEach((expression) => {
+                value = this.eval(expression, ctx) as TaintedLiteral; 
+            })
+            return value;
+          }
+
+          if (t.isUnaryExpression(node)) {
+            let argument = this.eval(node.argument) as TaintedLiteral;
+
+            if (argument.isTainted) return {
+                isTainted: true
+            } // Taintness is inherited
+
+            let right = argument.value;
+            let value;
+            switch (node.operator) {
+                case 'void':
+                    value = void value;
+                case 'throw':
+                    throw right;
+                case 'delete':
+                    // @ts-ignore - assume program writers handle this correctly
+                    delete right;
+                case '!':
+                    value = !right;
+                case '+':
+                    value = +right;
+                case '-':
+                    value = -right;
+                case '~':
+                    value = ~right;
+                case 'typeof':
+                    value = typeof right;
+            }
+            return {
+                value: value,
+                isTainted: false
+            }
           }
 
 
