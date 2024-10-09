@@ -19,12 +19,11 @@ export class Environment {
         }); // Assumed to be untainted
     }
 
-    assign(name: string, value: any, isTainted: Boolean | undefined = undefined): void {
+    assign(name: string, { value, isTainted }: TaintedLiteral): void {
         if (!this.record.has(name)) throw new ReferenceException(name);
 
         if (isTainted === undefined) {
-            // @ts-ignore - Explicitly above
-            isTainted = this.record.get(name).isTainted;
+            isTainted = (this.record.get(name) as TaintedLiteral).isTainted;
         }
 
         this.record.set(name, {
@@ -35,8 +34,7 @@ export class Environment {
 
     resolve(name: string): TaintedLiteral {
         if (this.record.has(name)) {
-            // @ts-ignore - Explicitly handled
-            return this.record.get(name);
+            return this.record.get(name) as TaintedLiteral; // Checked if it exists above
         } else if (!this.parent) {
             throw new ReferenceException(name)
         } else {
