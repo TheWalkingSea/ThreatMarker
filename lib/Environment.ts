@@ -3,7 +3,7 @@ import { DeclarationException } from "./DeclarationException";
 
 export class Environment {
 
-    record: Map<string, TaintedVariable>;
+    record: Map<string, TaintedLiteral>;
     parent: Environment | null;
 
     constructor(record = new Map(), parent = null) {
@@ -11,19 +11,20 @@ export class Environment {
         this.parent = parent;
     }
 
-    declare(name: string, kind: string): void {
-        if (this.record.has(name)) throw new DeclarationException(name);
+    declare(name: string): void {
+        // We will disregard this error due to assumptions about the program
+        // if (this.record.has(name)) throw new DeclarationException(name);
+        
         this.record.set(name, {
             value: undefined,
-            isTainted: false,
-            kind: kind
+            isTainted: false
         }); // Assumed to be untainted
     }
 
     assign(name: string, { value, isTainted }: TaintedLiteral): void {
         if (!this.record.has(name)) throw new ReferenceException(name);
 
-        let entry = this.record.get(name) as TaintedVariable;
+        let entry = this.record.get(name) as TaintedLiteral;
 
         if (isTainted === undefined) {
             isTainted = entry.isTainted;
@@ -31,14 +32,13 @@ export class Environment {
 
         this.record.set(name, {
             value: value,
-            isTainted: isTainted,
-            kind: entry.kind // Inherit kind - Only defined at declaration
+            isTainted: isTainted
         });
     }
 
-    resolve(name: string): TaintedVariable {
+    resolve(name: string): TaintedLiteral {
         if (this.record.has(name)) {
-            return this.record.get(name) as TaintedVariable; // Checked if it exists above
+            return this.record.get(name) as TaintedLiteral; // Checked if it exists above
         } else if (!this.parent) {
             throw new ReferenceException(name)
         } else {

@@ -7,11 +7,9 @@ import * as t from '@babel/types';
 
 export class TaintInterpreter {
     callstack: Array<ExecutionContext>;
-    kind: string; // For variable declarations
 
     constructor(execCtx: ExecutionContext) {
         this.callstack = [execCtx];
-        this.kind = '';
     }
 
     eval(node: t.Node, ctx: ExecutionContext = this.callstack[this.callstack.length - 1]): t.Node | TaintedLiteral | undefined  {
@@ -44,7 +42,6 @@ export class TaintInterpreter {
         }
 
         if (t.isVariableDeclaration(node)) {
-            this.kind = node.kind;
             node.declarations.forEach((declaration) => {
                 return this.eval(declaration, ctx);
             })
@@ -52,7 +49,7 @@ export class TaintInterpreter {
 
         if (t.isVariableDeclarator(node)) {
             let id = (this.eval(node.id) as TaintedLiteral).value;
-            ctx.environment.declare(id, this.kind);
+            ctx.environment.declare(id);
 
             if (node.init) {
                 let init = this.eval(node.init, ctx) as TaintedLiteral;
@@ -62,7 +59,7 @@ export class TaintInterpreter {
 
         if (t.isIdentifier(node)) {
         try {
-            return ctx.environment.resolve(node.name);
+            return ctx.environment.resolve(node.name).value;
         } catch (e) {
             if (e instanceof ReferenceException) {
                 return {
@@ -212,20 +209,10 @@ export class TaintInterpreter {
                 this.callstack.pop() // Remove isolatedEnv
                 let currentEnv = (this.callstack[this.callstack.length - 1] as ExecutionContext).environment;
                 isolatedCtx.environment.record.forEach((value: TaintedLiteral, key: string, _) => {
-                    // If a var in inner scope is defined in the outer scope
-                    if (currentEnv.has(key)) {
-                        currentEnv.assign(key, {
-                            isTainted: true
-                        })
-
-                    // A var is defined using 'var' in inner scope
-                    // Only functions make boundries for 'var' not blocks like let so they leak into outer block definitions
-                    } else if (isolatedEnv.resolve(key).kind == 'var') {
-                        currentEnv.declare(key, 'var');
-                        currentEnv.assign(key, {
-                            isTainted: true
-                        })
-                    }
+                    // Due to the assumption, all variables defined in the inner block will leak into the outer block
+                    currentEnv.assign(key, {
+                        isTainted: true
+                    })
                 })
 
 
@@ -241,15 +228,28 @@ export class TaintInterpreter {
         }
 
         if (t.isBlockStatement(node)) {
-            // Put if statement in it's own context
-            this.callstack.push(new ExecutionContext(
+
+            let isolatedCtx = new ExecutionContext(
                 ctx.thisValue,
                 new Environment()
-            ))
+            );
 
-            node.body.forEach((stmt) => {
+            // Put if statement in it's own context
+            this.callstack.push(isolatedCtx)
+
+            for (let i=0;i<node.body.length;i++) {
+                let stmt = node.body[i]
                 this.eval(stmt); // Don't specify ctx to use new ctx
-            })
+
+                if (this.callstack[this.callstack.length - 1] !== isolatedCtx) {
+                    break; // No longer in context - Break out of block
+                }
+            }
+
+            this.callstack.pop();
+
+            // Algorithm: Only function and var declarations leak out of blocks. Function declarations seperate these
+
 
 
         }
