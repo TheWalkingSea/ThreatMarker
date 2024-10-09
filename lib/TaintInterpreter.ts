@@ -228,30 +228,15 @@ export class TaintInterpreter {
         }
 
         if (t.isBlockStatement(node)) {
-
-            let isolatedCtx = new ExecutionContext(
-                ctx.thisValue,
-                new Environment()
-            );
-
-            // Put if statement in it's own context
-            this.callstack.push(isolatedCtx)
-
+            let currentCtx = this.callstack[this.callstack.length - 1];
             for (let i=0;i<node.body.length;i++) {
                 let stmt = node.body[i]
-                this.eval(stmt); // Don't specify ctx to use new ctx
+                this.eval(stmt, ctx); // Don't specify ctx to use new ctx
 
-                if (this.callstack[this.callstack.length - 1] !== isolatedCtx) {
+                if (this.callstack[this.callstack.length - 1] !== currentCtx) {
                     break; // No longer in context - Break out of block
                 }
             }
-
-            this.callstack.pop();
-
-            // Algorithm: Only function and var declarations leak out of blocks. Function declarations seperate these
-
-
-
         }
 
 

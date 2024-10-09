@@ -10,7 +10,7 @@
 'BooleanLiteral' ✔️
 'RegExpLiteral', ✔️
 'IfStatement', ✔️
-'BlockStatement'
+'BlockStatement' ✔️
 'CallExpression',
 'FunctionExpression',
 'VariableDeclaration',
