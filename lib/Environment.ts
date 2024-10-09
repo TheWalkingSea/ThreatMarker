@@ -45,4 +45,8 @@ export class Environment {
             return this.parent.resolve(name);
         }
     }
+
+    has(name: string): Boolean {
+        return this.record.has(name);
+    }
 }
