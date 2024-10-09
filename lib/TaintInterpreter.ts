@@ -7,9 +7,11 @@ import * as t from '@babel/types';
 
 export class TaintInterpreter {
     callstack: Array<ExecutionContext>;
+    kind: string; // For variable declarations
 
     constructor(execCtx: ExecutionContext) {
         this.callstack = [execCtx];
+        this.kind = '';
     }
 
     eval(node: t.Node, ctx: ExecutionContext = this.callstack[this.callstack.length - 1]): t.Node | TaintedLiteral | undefined  {
@@ -42,19 +44,20 @@ export class TaintInterpreter {
         }
 
         if (t.isVariableDeclaration(node)) {
-        node.declarations.forEach((declaration) => {
-            return this.eval(declaration, ctx);
-        })
+            this.kind = node.kind;
+            node.declarations.forEach((declaration) => {
+                return this.eval(declaration, ctx);
+            })
         }
 
         if (t.isVariableDeclarator(node)) {
-        let id = (this.eval(node.id) as TaintedLiteral).value;
-        ctx.environment.declare(id);
+            let id = (this.eval(node.id) as TaintedLiteral).value;
+            ctx.environment.declare(id, this.kind);
 
-        if (node.init) {
-            let init = this.eval(node.init, ctx) as TaintedLiteral;
-            ctx.environment.assign(id, init);
-        }
+            if (node.init) {
+                let init = this.eval(node.init, ctx) as TaintedLiteral;
+                ctx.environment.assign(id, init);
+            }
         }
 
         if (t.isIdentifier(node)) {
