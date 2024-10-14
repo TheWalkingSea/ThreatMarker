@@ -2,14 +2,15 @@ import { Environment } from "./Environment";
 import { ExecutionContext } from "./ExecutionContext";
 import { NotImplementedException } from "./NotImplementedException";
 import { ReferenceException } from "./ReferenceException";
-import { TaintedNode } from "./TaintedNode";
 import * as t from '@babel/types';
 
 export class TaintInterpreter {
     callstack: Array<ExecutionContext>;
+    ast: Array<t.Node>;
 
     constructor(execCtx: ExecutionContext) {
         this.callstack = [execCtx];
+        this.ast = []
     }
 
     eval(node: t.Node, ctx: ExecutionContext = this.callstack[this.callstack.length - 1]): t.Node | TaintedLiteral | undefined  {
@@ -51,24 +52,27 @@ export class TaintInterpreter {
 
         if (t.isVariableDeclaration(node)) {
             // Loops through all declarations -> Reference VariableDeclarator
+            let declarations: Array<t.VariableDeclarator> = [];
             node.declarations.forEach((declaration) => {
-                return this.eval(declaration, ctx);
+                declarations.push(
+                    this.eval(declaration, ctx) as t.VariableDeclarator
+                );
             })
-
+            this.ast.push(t.variableDeclaration(node.kind, declarations)); // Add declarations to ast
             return;
         }
 
         if (t.isVariableDeclarator(node)) {
             // If the right side is tainted, make this variable tainted - Implicitly tainted
-            let id = (this.eval(node.id) as TaintedLiteral).value;
+            let id = (node.id as t.Identifier).name
             ctx.environment.declare(id);
-
             if (node.init) {
                 let init = this.eval(node.init, ctx) as TaintedLiteral;
                 ctx.environment.assign(id, init);
+                return t.variableDeclarator(t.identifier(id));
             }
 
-            return;
+            return t.variableDeclarator(t.identifier(id));
         }
 
         if (t.isIdentifier(node)) {
@@ -103,50 +107,66 @@ export class TaintInterpreter {
             switch (node.operator) {
                 case '+':
                     value = left + right;
+                    break;
                 case '-':
                     value = left - right;
+                    break;
                 case '*':
                     value = left * right;
+                    break;
                 case '/':
                     value = left / right;
+                    break;
                 case '%':
                     value = left % right;
+                    break;
                 case '**':
                     value = left ** right;
+                    break;
                 case '&':
                     value = left & right;
+                    break;
                 case '|':
                     value = left | right;
+                    break;
                 case '>>':
                     value = left >> right;
+                    break;
                 case '>>>':
                     value = left >>> right;
+                    break;
                 case '<<':
                     value = left << right;
+                    break;
                 case '^':
                     value = left ^ right;
+                    break;
                 case '==':
                     value = left == right;
+                    break;
                 case '===':
                     value = left === right;
+                    break;
                 case '!=':
                     value = left != right;
+                    break;
                 case '!==':
                     value = left !== right;
-                case 'in':
-                    value = left in right;
-                case 'instanceof':
-                    value = left instanceof right;
+                    break;
                 case '>':
                     value = left > right;
+                    break;
                 case '<':
                     value = left < right;
+                    break;
                 case '>=':
                     value = left >= right;
+                    break;
                 case '<=':
                     value = left <= right;
-                case '|>':
-                    throw new NotImplementedException('|>');
+                    break;
+                default:
+                    throw new NotImplementedException(node.operator);
             }
 
 
@@ -183,20 +203,29 @@ export class TaintInterpreter {
             switch (node.operator) {
                 case 'void':
                     value = void value;
+                    break;
                 case 'throw':
                     throw right;
+                    break;
                 case '!':
                     value = !right;
+                    break;
                 case '+':
                     value = +right;
+                    break;
                 case '-':
                     value = -right;
+                    break;
                 case '~':
                     value = ~right;
+                    break;
                 case 'typeof':
                     value = typeof right;
-                case 'delete':
-                    throw new NotImplementedException('delete')                }
+                    break;
+                default:
+                    throw new NotImplementedException(node.operator)
+            }
+            
             return {
                 value: value,
                 isTainted: false
@@ -282,34 +311,45 @@ export class TaintInterpreter {
                 switch (node.operator) {
                     case '=':
                         value = right;
+                        break;
                     case '+=':
                         value = left + right;
+                        break;
                     case '-=':
                         value = left - right;
+                        break;
                     case '*=':
                         value = left * right;
+                        break;
                     case '/=':
                         value = left / right;
+                        break;
                     case '%=':
                         value = left % right;
+                        break;
                     case '**=':
                         value = left ** right;
+                        break;
                     case '<<=':
                         value = left << right;
+                        break;
                     case '>>=':
                         value = left >> right;
+                        break;
                     case '>>>=':
                         value = left >>> right;
+                        break;;
                     case '&=':
                         value = left & right;
+                        break;
                     case '^=':
                         value = left ^ right;
+                        break;
                     case '|=':
                         value = left | right;
-                    case '&&=':
-                    case '||=':
-                    case '??=':
-                        throw new NotImplementedException('&&=, ||=, ??=')
+                        break;
+                    default:
+                        throw new NotImplementedException(node.operator)
                 }
 
                 // @ts-expect-error - undefined when an error is thrown => typecheck error but impossible path
