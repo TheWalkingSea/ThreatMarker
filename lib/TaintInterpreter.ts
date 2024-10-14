@@ -70,9 +70,16 @@ export class TaintInterpreter {
             if (node.init) {
                 let init = this.eval(node.init, ctx) as TaintedLiteral;
                 if (init.isTainted) { // If tainted then just add expression to ast
+                    ctx.environment.assign(id, {
+                        node: init.node,
+                        isTainted: true
+                    });
                     return t.variableDeclarator(t.identifier(id), init.node);
                 } else { // If constant add to env and assign identifier to const
-                    ctx.environment.assign(id, init);
+                    ctx.environment.assign(id, {
+                        value: init.value,
+                        isTainted: false
+                    });
                     return t.variableDeclarator(t.identifier(id), Value(init.value));
                 }
             }
@@ -87,6 +94,7 @@ export class TaintInterpreter {
             } catch (e) {
                 if (e instanceof ReferenceException) {
                     return {
+                        node: t.identifier(node.name),
                         isTainted: true
                     } // Tainted ! - Defined in browser, not in NodeJS
                 } else {
@@ -101,9 +109,13 @@ export class TaintInterpreter {
             let right_id = this.eval(node.right, ctx) as TaintedLiteral;
 
             if (left_id.isTainted || right_id.isTainted) {
-                if (!left_id?.node || !right_id?.node) throw new Error('left or right node in BinaryExpression is undefined despite being tainted');
+                if (!left_id?.node && !right_id?.node) throw new Error('left or right node in BinaryExpression is undefined despite being tainted');
                 return {
-                    node: t.binaryExpression(node.operator, left_id.node, right_id.node),
+                    node: t.binaryExpression(
+                        node.operator, 
+                        left_id?.node || Value(left_id.value), 
+                        right_id?.node || Value(right_id.value)
+                    ),
                     isTainted: true
                 } // Taintness is inherited
             }
