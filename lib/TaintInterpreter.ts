@@ -193,40 +193,39 @@ export class TaintInterpreter {
             }
         }
 
+
+        // Come back later to remove redundant code if the condition is not tainted
         if (t.isIfStatement(node)) {
             // If the condition is tainted, run both blocks isolated & taint any variables written from outer scope
             // If the condition is not tainted, remove the redundant block
             let test = this.eval(node.test) as TaintedLiteral;
             
             if (test.isTainted) { // All subsequent nodes are tainted
+                for (let block of [node.consequent, node.alternate]) { // Run both blocks
 
-                let isolatedCtx = new ExecutionContext(
-                    ctx.thisValue,
-                    new Environment()
-                )
-                
-                // Put if statement in it's own context
-                this.callstack.push(isolatedCtx)
+                    if (!block) return;
 
-                let block = test ? node.consequent : node.alternate
-                if (!block) return;
+                    let isolatedCtx = new ExecutionContext(
+                        ctx.thisValue,
+                        // @ts-expect-error - Environment is undefined in type checking so an error throws. Ignore
+                        new Environment(new Map(), ctx.environment, true) // taint_parent_writes = true
+                    )
+                    
+                    // Put if statement in it's own context
+                    this.callstack.push(isolatedCtx);
 
-                this.eval(block); // Use new execCtx
+                    // Execute the block
+                    this.eval(block, isolatedCtx);
 
-                // Algorithm: Any variables defined in the block that are defined in outer scope are tainted
-                this.callstack.pop() // Remove isolatedEnv
-                let currentEnv = (this.callstack[this.callstack.length - 1] as ExecutionContext).environment;
-                isolatedCtx.environment.record.forEach((value: TaintedLiteral, key: string, _) => {
-                    // Due to the assumption, all variables defined in the inner block will leak into the outer block
-                    currentEnv.assign(key, {
-                        isTainted: true
+                    // Algorithm: Any variables defined in the inner block are tainted in outer scope
+                    this.callstack.pop() // Remove isolatedEnv
+                    isolatedCtx.environment.record.forEach((value: TaintedLiteral, key: string, _) => {
+                        // Due to the assumption all definitions use var, all variables defined in the inner block will leak into the outer block
+                        ctx.environment.assign(key, {
+                            isTainted: true
+                        });
                     })
-                })
-
-
-
-
-
+                }
             } else { // Execute normally
                 let block = test ? node.consequent : node.alternate
                 if (block) {
