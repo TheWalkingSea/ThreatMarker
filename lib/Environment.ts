@@ -5,10 +5,12 @@ export class Environment {
 
     record: Map<string, TaintedLiteral>;
     parent: Environment | null;
+    taint_parent_writes: boolean;
 
-    constructor(record = new Map(), parent = null) {
+    constructor(record = new Map(), parent = null, taint_parent_writes = false) {
         this.record = record;
         this.parent = parent;
+        this.taint_parent_writes = taint_parent_writes; // For tainted if blocks, any writes outside of block is auto tainted
     }
 
     declare(name: string): void {
@@ -22,31 +24,40 @@ export class Environment {
     }
 
     assign(name: string, { value, isTainted }: TaintedLiteral): void {
-        if (!this.record.has(name)) throw new ReferenceException(name);
+        if (!this.record.has(name)) throw new ReferenceException(name); // Undefined
 
-        let entry = this.record.get(name) as TaintedLiteral;
+        let env = this._resolve_parent(name); // Get the environment with the identifier defined
 
-        if (isTainted === undefined) {
+        if (this.taint_parent_writes && env.parent !== this) { // If parent is not the current env & taint_parent_writes is defined, set taint to identifier
+            env.record.set(name, {
+                isTainted: true
+            });
+            return;
+        }
+
+        if (isTainted === undefined) { // If isTainted is undefined, implicitly flow taint from identifier
+            let entry = env.record.get(name) as TaintedLiteral; // Gets identifier data
             isTainted = entry.isTainted;
         }
 
-        this.record.set(name, {
+        env.record.set(name, {
             value: value,
             isTainted: isTainted
         });
     }
 
     resolve(name: string): TaintedLiteral {
-        if (this.record.has(name)) {
-            return this.record.get(name) as TaintedLiteral; // Checked if it exists above
-        } else if (!this.parent) {
-            throw new ReferenceException(name)
-        } else {
-            return this.parent.resolve(name);
-        }
+        let env: Environment = this._resolve_parent(name);
+        return env.record.get(name) as TaintedLiteral;
     }
 
-    has(name: string): Boolean {
-        return this.record.has(name);
+    _resolve_parent(name: string): Environment {
+        if (this.record.has(name)) {
+            return this; // Checked if it exists above
+        } else if (!this.parent) { // If parent is null, id is undefined
+            throw new ReferenceException(name)
+        } else { // If parent exists, try to resolve
+            return this.parent._resolve_parent(name);
+        }
     }
 }
