@@ -23,7 +23,7 @@ export class Environment {
         }); // Assumed to be untainted
     }
 
-    assign(name: string, { value, isTainted }: TaintedLiteral): void {
+    assign(name: string, { value, node, isTainted }: TaintedLiteral): void {
         if (!this.record.has(name)) throw new ReferenceException(name); // Undefined
 
         let env = this._resolve_parent(name); // Get the environment with the identifier defined
@@ -39,11 +39,21 @@ export class Environment {
             let entry = env.record.get(name) as TaintedLiteral; // Gets identifier data
             isTainted = entry.isTainted;
         }
+        
+        if (value) {
+            env.record.set(name, {
+                value: value,
+                isTainted: isTainted
+            });
+        } else if (node) {
+            env.record.set(name, {
+                node: node,
+                isTainted: isTainted
+            });
+        }
 
-        env.record.set(name, {
-            value: value,
-            isTainted: isTainted
-        });
+        if (value && node) throw new Error(`value and node are both defined when assigning ${name}`)
+
     }
 
     resolve(name: string): TaintedLiteral {
