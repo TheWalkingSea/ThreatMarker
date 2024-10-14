@@ -97,16 +97,19 @@ export class TaintInterpreter {
 
         if (t.isBinaryExpression(node)) {
             // If left or right side of expression is tainted, make the entire expression tainted
-            let l = this.eval(node.left, ctx) as TaintedLiteral;
-            let r = this.eval(node.right, ctx) as TaintedLiteral;
+            let left_id = this.eval(node.left, ctx) as TaintedLiteral;
+            let right_id = this.eval(node.right, ctx) as TaintedLiteral;
 
-            if (l.isTainted || r.isTainted) return {
-                isTainted: true
-            } // Taintness is inherited
+            if (left_id.isTainted || right_id.isTainted) {
+                if (!left_id?.node || !right_id?.node) throw new Error('left or right node in BinaryExpression is undefined despite being tainted');
+                return {
+                    node: t.binaryExpression(node.operator, left_id.node, right_id.node),
+                    isTainted: true
+                } // Taintness is inherited
+            }
 
-
-            let left = l.value;
-            let right = r.value;
+            let left = left_id.value;
+            let right = right_id.value;
 
             let value;
             switch (node.operator) {
@@ -174,8 +177,7 @@ export class TaintInterpreter {
                     throw new NotImplementedException(node.operator);
             }
 
-
-            // Code is reachable unless there is an exception - Ignore linter
+            
             return {
                 value: value,
                 isTainted: false
