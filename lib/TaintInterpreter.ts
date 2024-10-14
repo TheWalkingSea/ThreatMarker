@@ -3,7 +3,7 @@ import { ExecutionContext } from "./ExecutionContext";
 import { NotImplementedException } from "./NotImplementedException";
 import { ReferenceException } from "./ReferenceException";
 import * as t from '@babel/types';
-
+import { Value } from './../utils/to_value';
 export class TaintInterpreter {
     callstack: Array<ExecutionContext>;
     ast: Array<t.Node>;
@@ -65,11 +65,16 @@ export class TaintInterpreter {
         if (t.isVariableDeclarator(node)) {
             // If the right side is tainted, make this variable tainted - Implicitly tainted
             let id = (node.id as t.Identifier).name
+
             ctx.environment.declare(id);
             if (node.init) {
                 let init = this.eval(node.init, ctx) as TaintedLiteral;
-                ctx.environment.assign(id, init);
-                return t.variableDeclarator(t.identifier(id));
+                if (init.isTainted) { // If tainted then add expression to ast
+                    return t.variableDeclarator(t.identifier(id), init.node);
+                } else { // If constant add to env
+                    ctx.environment.assign(id, init);
+                    return t.variableDeclarator(t.identifier(id), Value(init.value));
+                }
             }
 
             return t.variableDeclarator(t.identifier(id));
