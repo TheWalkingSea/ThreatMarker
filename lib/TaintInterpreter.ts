@@ -134,7 +134,7 @@ export class TaintInterpreter {
                 case '<=':
                     value = left <= right;
                 case '|>':
-                    throw new NotImplementedException('|> is not implemented');
+                    throw new NotImplementedException('|>');
             }
 
 
@@ -235,32 +235,39 @@ export class TaintInterpreter {
         }
 
         if (t.isBlockStatement(node)) {
-            let currentCtx = this.callstack[this.callstack.length - 1];
             for (let i=0;i<node.body.length;i++) {
                 let stmt = node.body[i]
-                this.eval(stmt, ctx); // Don't specify ctx to use new ctx
+                this.eval(stmt, ctx);
 
-                if (this.callstack[this.callstack.length - 1] !== currentCtx) {
+                if (this.callstack[this.callstack.length - 1] !== ctx) { // Used for functions
                     break; // No longer in context - Break out of block
                 }
             }
         }
 
         if (t.isAssignmentExpression(node)) {
-            let r = this.eval(node.right, ctx) as TaintedLiteral;
+            // If any operands are tainted, the assignment is also tainted
+            let right_id = this.eval(node.right, ctx) as TaintedLiteral;
 
             if (t.isIdentifier(node.left)) {
                 let name = node.left.name;
-                if (r.isTainted) {
+
+                if (right_id.isTainted) { // If right is tainted, taint assignment
                     ctx.environment.assign(name, {
                         isTainted: true
                     }) // Taint is passed down
                     return;
                 }
-                let right = r.value;
-                let left = ctx.environment.resolve(name).value;
+
+                let right = right_id.value;
+                let left_id = ctx.environment.resolve(name) as TaintedLiteral;
+
+                if (left_id.isTainted && node.operator !== '=') { // If left is tainted and an operator, return
+                    return;
+                }
 
                 let value;
+                let left = left_id.value; // Extract value
 
                 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Expressions_and_operators
                 switch (node.operator) {
@@ -293,21 +300,22 @@ export class TaintInterpreter {
                     case '&&=':
                     case '||=':
                     case '??=':
-                        throw new NotImplementedException('&&=, ||=, ??= not implemented')
+                        throw new NotImplementedException('&&=, ||=, ??=')
                 }
 
                 // @ts-expect-error - undefined when an error is thrown => typecheck error but impossible path
-                return ctx.environment.assign(left, {
-                    value: right,
+                return ctx.environment.assign(left_id, {
+                    value: value,
                     isTainted: false
                 })
             }
+
             if (t.isMemberExpression(node.left)) {
-                throw NotImplementedException
+                throw new NotImplementedException('MemberExpression')
             }
 
             }
 
-        throw new NotImplementedException(`${node.type} cannot be handled`)
+        throw new NotImplementedException(node.type)
     }
 }
