@@ -83,7 +83,7 @@ export class TaintInterpreter {
         if (t.isIdentifier(node)) {
             // Return the identifier, if it is not defined then assume it is tainted
             try {
-                return ctx.environment.resolve(node.name).value;
+                return ctx.environment.resolve(node.name);
             } catch (e) {
                 if (e instanceof ReferenceException) {
                     return {
