@@ -3,8 +3,9 @@ import * as t from '@babel/types';
 import * as fs from 'node:fs';
 import traverse from '@babel/traverse';
 import generator from '@babel/generator';
-import { pathHandler } from './utils/handler';
-import { NodePath } from '@babel/traverse';
+import { TaintInterpreter } from './lib/TaintInterpreter';
+import { ExecutionContext } from './lib/ExecutionContext';
+import { Environment } from './lib/Environment';
 
 
 const d0 = new Date()
@@ -17,31 +18,22 @@ const data = fs.readFileSync(INPUT, 'utf8');
 
 const ast = parser.parse(data);
 
-traverse(ast, {
-    enter(path: NodePath) {
-        pathHandler(path);
-    }
-});
 
-const output = generator(ast, {
+let globalCtx = new ExecutionContext(
+    this,
+    new Environment()
+)
+let ti = new TaintInterpreter(globalCtx)
+
+ti.eval(ast.program)
+
+console.log('converting to ast...')
+// @ts-ignore
+const output = generator(t.program(ti.ast), {
     comments: false
 });
 
-
-let code = output.code
-
-fs.writeFileSync(OUTPUT, '', { flag: 'w+' }); // Flush file
-
-code = `
-function writeToFile_xpao23(inp) {
-    fs.writeFileSync('${OUTPUT}', inp.toString() + '\\n', { flag: 'a' });
-};
-
-${code}`
-
-console.log(code);
-
-eval(code);
+console.log(output.code);
 
 // @ts-ignore
 console.log(`Executed in ${Math.abs(new Date() - d0)}ms`)
