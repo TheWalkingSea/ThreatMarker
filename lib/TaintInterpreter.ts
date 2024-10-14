@@ -13,6 +13,14 @@ export class TaintInterpreter {
     }
 
     eval(node: t.Node, ctx: ExecutionContext = this.callstack[this.callstack.length - 1]): t.Node | TaintedLiteral | undefined  {
+        if (t.isProgram(node)) {
+            node.body.forEach((node) => {
+                this.eval(node, ctx);
+            })
+
+            return;
+        }
+
         if (t.isExpressionStatement(node)) {
             return this.eval(node.expression, ctx);
         }
@@ -46,6 +54,8 @@ export class TaintInterpreter {
             node.declarations.forEach((declaration) => {
                 return this.eval(declaration, ctx);
             })
+
+            return;
         }
 
         if (t.isVariableDeclarator(node)) {
@@ -57,6 +67,8 @@ export class TaintInterpreter {
                 let init = this.eval(node.init, ctx) as TaintedLiteral;
                 ctx.environment.assign(id, init);
             }
+
+            return;
         }
 
         if (t.isIdentifier(node)) {
@@ -159,23 +171,20 @@ export class TaintInterpreter {
         }
 
         if (t.isUnaryExpression(node)) {
-            // If the argument is tainted, return taint
-            let argument = this.eval(node.argument) as TaintedLiteral;
+            // If the operand is tainted, return taint
+            let operand = this.eval(node.argument) as TaintedLiteral;
 
-            if (argument.isTainted) return {
+            if (operand.isTainted) return {
                 isTainted: true
             } // Taintness is inherited
 
-            let right = argument.value;
+            let right = operand.value;
             let value;
             switch (node.operator) {
                 case 'void':
                     value = void value;
                 case 'throw':
                     throw right;
-                case 'delete':
-                    // @ts-ignore - assume program writers handle this correctly
-                    delete right;
                 case '!':
                     value = !right;
                 case '+':
@@ -186,13 +195,13 @@ export class TaintInterpreter {
                     value = ~right;
                 case 'typeof':
                     value = typeof right;
-            }
+                case 'delete':
+                    throw new NotImplementedException('delete')                }
             return {
                 value: value,
                 isTainted: false
             }
         }
-
 
         // Come back later to remove redundant code if the condition is not tainted
         if (t.isIfStatement(node)) {
@@ -314,7 +323,7 @@ export class TaintInterpreter {
                 throw new NotImplementedException('MemberExpression')
             }
 
-            }
+        }
 
         throw new NotImplementedException(node.type)
     }
