@@ -13,10 +13,10 @@
 'BlockStatement' ✔️
 'CallExpression',
 'FunctionExpression',
-'VariableDeclaration',
-'VariableDeclarator',
+'VariableDeclaration', ✔️
+'VariableDeclarator', ✔️
 'FunctionDeclaration',
-'AssignmentExpression',
+'AssignmentExpression', ✔️
 'ObjectExpression',
 'ThisExpression',
 'ReturnStatement',

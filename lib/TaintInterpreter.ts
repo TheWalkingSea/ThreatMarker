@@ -42,12 +42,14 @@ export class TaintInterpreter {
         }
 
         if (t.isVariableDeclaration(node)) {
+            // Loops through all declarations -> Reference VariableDeclarator
             node.declarations.forEach((declaration) => {
                 return this.eval(declaration, ctx);
             })
         }
 
         if (t.isVariableDeclarator(node)) {
+            // If the right side is tainted, make this variable tainted - Implicitly tainted
             let id = (this.eval(node.id) as TaintedLiteral).value;
             ctx.environment.declare(id);
 
@@ -58,87 +60,89 @@ export class TaintInterpreter {
         }
 
         if (t.isIdentifier(node)) {
-        try {
-            return ctx.environment.resolve(node.name).value;
-        } catch (e) {
-            if (e instanceof ReferenceException) {
-                return {
-                    isTainted: true
-                } // Tainted ! - Defined in browser, not in NodeJS
-            } else {
-                throw e
+            // Return the identifier, if it is not defined then assume it is tainted
+            try {
+                return ctx.environment.resolve(node.name).value;
+            } catch (e) {
+                if (e instanceof ReferenceException) {
+                    return {
+                        isTainted: true
+                    } // Tainted ! - Defined in browser, not in NodeJS
+                } else {
+                    throw e
+                }
             }
-        }
         }
 
         if (t.isBinaryExpression(node)) {
-        let l = this.eval(node.left, ctx) as TaintedLiteral;
-        let r = this.eval(node.right, ctx) as TaintedLiteral;
+            // If left or right side of expression is tainted, make the entire expression tainted
+            let l = this.eval(node.left, ctx) as TaintedLiteral;
+            let r = this.eval(node.right, ctx) as TaintedLiteral;
 
-        if (l.isTainted || r.isTainted) return {
-            isTainted: true
-        } // Taintness is inherited
-
-
-        let left = l.value;
-        let right = r.value;
-
-        let value;
-        switch (node.operator) {
-            case '+':
-                value = left + right;
-            case '-':
-                value = left - right;
-            case '*':
-                value = left * right;
-            case '/':
-                value = left / right;
-            case '%':
-                value = left % right;
-            case '**':
-                value = left ** right;
-            case '&':
-                value = left & right;
-            case '|':
-                value = left | right;
-            case '>>':
-                value = left >> right;
-            case '>>>':
-                value = left >>> right;
-            case '<<':
-                value = left << right;
-            case '^':
-                value = left ^ right;
-            case '==':
-                value = left == right;
-            case '===':
-                value = left === right;
-            case '!=':
-                value = left != right;
-            case '!==':
-                value = left !== right;
-            case 'in':
-                value = left in right;
-            case 'instanceof':
-                value = left instanceof right;
-            case '>':
-                value = left > right;
-            case '<':
-                value = left < right;
-            case '>=':
-                value = left >= right;
-            case '<=':
-                value = left <= right;
-            case '|>':
-                throw new NotImplementedException('|> is not implemented');
-        }
+            if (l.isTainted || r.isTainted) return {
+                isTainted: true
+            } // Taintness is inherited
 
 
-        // Code is reachable unless there is an exception - Ignore linter
-        return {
-            value: value,
-            isTainted: false
-        }
+            let left = l.value;
+            let right = r.value;
+
+            let value;
+            switch (node.operator) {
+                case '+':
+                    value = left + right;
+                case '-':
+                    value = left - right;
+                case '*':
+                    value = left * right;
+                case '/':
+                    value = left / right;
+                case '%':
+                    value = left % right;
+                case '**':
+                    value = left ** right;
+                case '&':
+                    value = left & right;
+                case '|':
+                    value = left | right;
+                case '>>':
+                    value = left >> right;
+                case '>>>':
+                    value = left >>> right;
+                case '<<':
+                    value = left << right;
+                case '^':
+                    value = left ^ right;
+                case '==':
+                    value = left == right;
+                case '===':
+                    value = left === right;
+                case '!=':
+                    value = left != right;
+                case '!==':
+                    value = left !== right;
+                case 'in':
+                    value = left in right;
+                case 'instanceof':
+                    value = left instanceof right;
+                case '>':
+                    value = left > right;
+                case '<':
+                    value = left < right;
+                case '>=':
+                    value = left >= right;
+                case '<=':
+                    value = left <= right;
+                case '|>':
+                    throw new NotImplementedException('|> is not implemented');
+            }
+
+
+            // Code is reachable unless there is an exception - Ignore linter
+            return {
+                value: value,
+                isTainted: false
+            }
         }
 
         if (t.isEmptyStatement(node)) {
@@ -146,48 +150,52 @@ export class TaintInterpreter {
         }
 
         if (t.isSequenceExpression(node)) {
-        let value;
-        node.expressions.forEach((expression) => {
-            value = this.eval(expression, ctx) as TaintedLiteral; 
-        })
-        return value;
+            // Just executes every expression, if the last expression is tainted, return taint - Implicitly tainted
+            let value;
+            node.expressions.forEach((expression) => {
+                value = this.eval(expression, ctx) as TaintedLiteral; 
+            })
+            return value;
         }
 
         if (t.isUnaryExpression(node)) {
-        let argument = this.eval(node.argument) as TaintedLiteral;
+            // If the argument is tainted, return taint
+            let argument = this.eval(node.argument) as TaintedLiteral;
 
-        if (argument.isTainted) return {
-            isTainted: true
-        } // Taintness is inherited
+            if (argument.isTainted) return {
+                isTainted: true
+            } // Taintness is inherited
 
-        let right = argument.value;
-        let value;
-        switch (node.operator) {
-            case 'void':
-                value = void value;
-            case 'throw':
-                throw right;
-            case 'delete':
-                // @ts-ignore - assume program writers handle this correctly
-                delete right;
-            case '!':
-                value = !right;
-            case '+':
-                value = +right;
-            case '-':
-                value = -right;
-            case '~':
-                value = ~right;
-            case 'typeof':
-                value = typeof right;
-        }
-        return {
-            value: value,
-            isTainted: false
-        }
+            let right = argument.value;
+            let value;
+            switch (node.operator) {
+                case 'void':
+                    value = void value;
+                case 'throw':
+                    throw right;
+                case 'delete':
+                    // @ts-ignore - assume program writers handle this correctly
+                    delete right;
+                case '!':
+                    value = !right;
+                case '+':
+                    value = +right;
+                case '-':
+                    value = -right;
+                case '~':
+                    value = ~right;
+                case 'typeof':
+                    value = typeof right;
+            }
+            return {
+                value: value,
+                isTainted: false
+            }
         }
 
         if (t.isIfStatement(node)) {
+            // If the condition is tainted, run both blocks isolated & taint any variables written from outer scope
+            // If the condition is not tainted, remove the redundant block
             let test = this.eval(node.test) as TaintedLiteral;
             
             if (test.isTainted) { // All subsequent nodes are tainted
@@ -239,9 +247,68 @@ export class TaintInterpreter {
             }
         }
 
+        if (t.isAssignmentExpression(node)) {
+            let r = this.eval(node.right, ctx) as TaintedLiteral;
 
+            if (t.isIdentifier(node.left)) {
+                let name = node.left.name;
+                if (r.isTainted) {
+                    ctx.environment.assign(name, {
+                        isTainted: true
+                    }) // Taint is passed down
+                    return;
+                }
+                let right = r.value;
+                let left = ctx.environment.resolve(name).value;
 
+                let value;
 
+                // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Expressions_and_operators
+                switch (node.operator) {
+                    case '=':
+                        value = right;
+                    case '+=':
+                        value = left + right;
+                    case '-=':
+                        value = left - right;
+                    case '*=':
+                        value = left * right;
+                    case '/=':
+                        value = left / right;
+                    case '%=':
+                        value = left % right;
+                    case '**=':
+                        value = left ** right;
+                    case '<<=':
+                        value = left << right;
+                    case '>>=':
+                        value = left >> right;
+                    case '>>>=':
+                        value = left >>> right;
+                    case '&=':
+                        value = left & right;
+                    case '^=':
+                        value = left ^ right;
+                    case '|=':
+                        value = left | right;
+                    case '&&=':
+                    case '||=':
+                    case '??=':
+                        throw new NotImplementedException('&&=, ||=, ??= not implemented')
+                }
 
+                // @ts-expect-error - undefined when an error is thrown => typecheck error but impossible path
+                return ctx.environment.assign(left, {
+                    value: right,
+                    isTainted: false
+                })
+            }
+            if (t.isMemberExpression(node.left)) {
+                throw NotImplementedException
+            }
+
+            }
+
+        throw new NotImplementedException(`${node.type} cannot be handled`)
     }
 }
