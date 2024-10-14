@@ -69,15 +69,15 @@ export class TaintInterpreter {
             ctx.environment.declare(id);
             if (node.init) {
                 let init = this.eval(node.init, ctx) as TaintedLiteral;
-                if (init.isTainted) { // If tainted then add expression to ast
+                if (init.isTainted) { // If tainted then just add expression to ast
                     return t.variableDeclarator(t.identifier(id), init.node);
-                } else { // If constant add to env
+                } else { // If constant add to env and assign identifier to const
                     ctx.environment.assign(id, init);
                     return t.variableDeclarator(t.identifier(id), Value(init.value));
                 }
             }
 
-            return t.variableDeclarator(t.identifier(id));
+            return t.variableDeclarator(t.identifier(id)); // No value, just return identifier
         }
 
         if (t.isIdentifier(node)) {
