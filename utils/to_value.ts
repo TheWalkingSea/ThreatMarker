@@ -18,7 +18,7 @@ export function Value(value: any): t.Literal {
 
 // Technically returns t.Node | t.Literal but babel hasn't updated the Expression statements to accept said types
 export function get_repr(tl: TaintedLiteral): t.Expression {
-    if (!tl?.node && !tl?.value) throw new Error(`Representation of TaintedLiteral: ${tl} not defined`)
+    if (!tl?.node && !tl?.value) throw new Error(`Representation of TaintedLiteral: ${JSON.stringify(tl)} not defined. Node or value undefined`)
 
     return tl?.node || Value(tl.value);
 }

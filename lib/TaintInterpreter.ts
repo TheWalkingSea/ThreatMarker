@@ -307,7 +307,10 @@ export class TaintInterpreter {
                     this.callstack.pop() // Remove isolatedEnv
                     isolatedCtx.environment.record.forEach((value: TaintedLiteral, key: string, _) => {
                         // Due to the assumption all definitions use var, all variables defined in the inner block will leak into the outer block
-                        ctx.environment.setTaint(key, true);
+                        ctx.environment.assign(key, {
+                            node: t.identifier(key),
+                            isTainted: true
+                        })
                     })
 
                     return simplified_block;

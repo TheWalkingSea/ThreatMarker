@@ -1,6 +1,6 @@
 import { ReferenceException } from "./ReferenceException";
 import { DeclarationException } from "./DeclarationException";
-
+import * as t from '@babel/types';
 export class Environment {
 
     record: Map<string, TaintedLiteral>;
@@ -28,6 +28,7 @@ export class Environment {
 
         if (this.taint_parent_writes && env.parent !== this) { // If parent is not the current env & taint_parent_writes is defined, set taint to identifier
             env.record.set(name, {
+                node: t.identifier(name),
                 isTainted: true
             });
             return;
