@@ -24,8 +24,6 @@ export class Environment {
     }
 
     assign(name: string, { value, node, isTainted }: TaintedLiteral): void {
-        if (!this.record.has(name)) throw new ReferenceException(name); // Undefined
-
         let env = this._resolve_parent(name); // Get the environment with the identifier defined
 
         if (this.taint_parent_writes && env.parent !== this) { // If parent is not the current env & taint_parent_writes is defined, set taint to identifier
