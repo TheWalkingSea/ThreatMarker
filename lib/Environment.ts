@@ -53,7 +53,27 @@ export class Environment {
         }
 
         if (value && node) throw new Error(`value and node are both defined when assigning ${name}`)
+    }
 
+    setTaint(name: string, isTainted: Boolean): void {
+        // Sets the taint of the identifier without modifying the value / node
+
+        let env = this._resolve_parent(name); // Get the environment with the identifier defined
+
+        let entry = env.record.get(name);
+        if (entry?.value) {
+            env.record.set(name, {
+                value: entry.value,
+                isTainted: isTainted
+            })
+        } else if (entry?.node) {
+            env.record.set(name, {
+                node: entry.node,
+                isTainted: isTainted
+            })
+        }
+
+        if (entry?.value && entry?.node) throw new Error(`value and node are both defined when trying to set taint ${name}`)        
     }
 
     resolve(name: string): TaintedLiteral {

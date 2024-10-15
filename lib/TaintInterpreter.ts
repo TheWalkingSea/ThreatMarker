@@ -270,6 +270,7 @@ export class TaintInterpreter {
             }
         }
 
+        
         if (t.isIfStatement(node)) {
             // If the condition is tainted, run both blocks isolated & taint any variables written from outer scope
             // If the condition is not tainted, remove the redundant block
@@ -296,9 +297,7 @@ export class TaintInterpreter {
                     this.callstack.pop() // Remove isolatedEnv
                     isolatedCtx.environment.record.forEach((value: TaintedLiteral, key: string, _) => {
                         // Due to the assumption all definitions use var, all variables defined in the inner block will leak into the outer block
-                        ctx.environment.assign(key, {
-                            isTainted: true
-                        });
+                        ctx.environment.setTaint(key, true);
                     })
                 }
             } else { // Execute normally
@@ -329,9 +328,21 @@ export class TaintInterpreter {
 
                 if (right_id.isTainted) { // If right is tainted, taint assignment
                     ctx.environment.assign(name, {
+                        node: t.assignmentExpression(
+                            node.operator,
+                            t.identifier(name),
+                            get_repr(right_id)
+                        ),
                         isTainted: true
                     }) // Taint is passed down
-                    return;
+                    return {
+                        node: t.assignmentExpression(
+                            node.operator,
+                            t.identifier(name),
+                            get_repr(right_id)
+                        ),
+                        isTainted: true
+                    };
                 }
 
                 let right = right_id.value;
@@ -389,11 +400,19 @@ export class TaintInterpreter {
                         throw new NotImplementedException(node.operator)
                 }
 
-                // @ts-expect-error - undefined when an error is thrown => typecheck error but impossible path
-                return ctx.environment.assign(left_id, {
+                ctx.environment.assign(name, {
                     value: value,
                     isTainted: false
-                })
+                });
+
+                return {
+                    node: t.assignmentExpression(
+                        node.operator,
+                        t.identifier(name),
+                        Value(value)
+                    ),
+                    isTainted: false
+                } // Will be wrapped in another expression. ExpressionStatment, for example.
             }
 
             if (t.isMemberExpression(node.left)) {
