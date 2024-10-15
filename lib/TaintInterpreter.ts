@@ -13,7 +13,7 @@ export class TaintInterpreter {
         this.ast = []
     }
 
-    eval(node: t.Node, ctx: ExecutionContext = this.callstack[this.callstack.length - 1]): t.Node | TaintedLiteral | undefined  {
+    eval(node: t.Node, ctx: ExecutionContext = this.callstack[this.callstack.length - 1], return_block: Boolean = false): t.Node | TaintedLiteral | undefined  {
         if (t.isProgram(node)) {
             node.body.forEach((node) => {
                 this.eval(node, ctx);
@@ -25,9 +25,13 @@ export class TaintInterpreter {
         if (t.isExpressionStatement(node)) {
             let val = this.eval(node.expression, ctx) as TaintedLiteral;
             // if (val?.value) return; // Constant untainted variable => return
+            let expression = t.expressionStatement(get_repr(val));
 
-            this.ast.push(t.expressionStatement(get_repr(val)));
-            return;
+            if (return_block) return expression;
+            else {
+                this.ast.push(expression);
+                return;
+            }
         }
 
         if (t.isLiteral(node)) {
@@ -275,7 +279,7 @@ export class TaintInterpreter {
             // If the condition is tainted, run both blocks isolated & taint any variables written from outer scope
             // If the condition is not tainted, remove the redundant block
             let test = this.eval(node.test) as TaintedLiteral;
-            
+
             if (test.isTainted) { // All subsequent nodes are tainted
                 for (let block of [node.consequent, node.alternate]) { // Run both blocks
 
@@ -301,10 +305,11 @@ export class TaintInterpreter {
                     })
                 }
             } else { // Execute normally
-                let block = test ? node.consequent : node.alternate
+                let block = test.value ? node.consequent : node.alternate;
                 if (block) {
-                    this.ast.push(this.eval(block, ctx) as t.BlockStatement);
+                    this.eval(block, ctx) as t.BlockStatement | t.ExpressionStatement;
                 }
+                return;
             }
         }
 
