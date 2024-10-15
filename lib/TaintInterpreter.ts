@@ -3,7 +3,7 @@ import { ExecutionContext } from "./ExecutionContext";
 import { NotImplementedException } from "./NotImplementedException";
 import { ReferenceException } from "./ReferenceException";
 import * as t from '@babel/types';
-import { Value } from './../utils/to_value';
+import { Value, get_repr } from './../utils/to_value';
 export class TaintInterpreter {
     callstack: Array<ExecutionContext>;
     ast: Array<t.Node>;
@@ -23,7 +23,11 @@ export class TaintInterpreter {
         }
 
         if (t.isExpressionStatement(node)) {
-            return this.eval(node.expression, ctx);
+            let val = this.eval(node.expression, ctx) as TaintedLiteral;
+            // if (val?.value) return; // Constant untainted variable => return
+
+            this.ast.push(t.expressionStatement(get_repr(val)));
+            return;
         }
 
         if (t.isLiteral(node)) {
@@ -90,7 +94,11 @@ export class TaintInterpreter {
         if (t.isIdentifier(node)) {
             // Return the identifier, if it is not defined then assume it is tainted
             try {
-                return ctx.environment.resolve(node.name);
+                let val = ctx.environment.resolve(node.name);
+                if (val?.node) {
+                    val.node = t.identifier(node.name); // Replace the node with the identifier, instead of its representation
+                }
+                return val;
             } catch (e) {
                 if (e instanceof ReferenceException) {
                     return {
@@ -113,8 +121,8 @@ export class TaintInterpreter {
                 return {
                     node: t.binaryExpression(
                         node.operator, 
-                        left_id?.node || Value(left_id.value), 
-                        right_id?.node || Value(right_id.value)
+                        get_repr(left_id), 
+                        get_repr(right_id)
                     ),
                     isTainted: true
                 } // Taintness is inherited
@@ -202,11 +210,17 @@ export class TaintInterpreter {
 
         if (t.isSequenceExpression(node)) {
             // Just executes every expression, if the last expression is tainted, return taint - Implicitly tainted
-            let value;
+            let expressions: Array<TaintedLiteral> = [];
             node.expressions.forEach((expression) => {
-                value = this.eval(expression, ctx) as TaintedLiteral; 
+                expressions.push(
+                    this.eval(expression, ctx) as TaintedLiteral
+                )
             })
-            return value;
+            for (let expression of expressions) {
+                if (expression == expressions[expressions.length - 1]) return expression; // Last element returns
+
+                this.eval(t.expressionStatement(get_repr(expression)), ctx) // Convert to expression & re-evaluate
+            }
         }
 
         if (t.isUnaryExpression(node)) {
