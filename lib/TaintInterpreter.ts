@@ -270,7 +270,6 @@ export class TaintInterpreter {
             }
         }
 
-        // Come back later to remove redundant code if the condition is not tainted
         if (t.isIfStatement(node)) {
             // If the condition is tainted, run both blocks isolated & taint any variables written from outer scope
             // If the condition is not tainted, remove the redundant block
@@ -305,7 +304,7 @@ export class TaintInterpreter {
             } else { // Execute normally
                 let block = test ? node.consequent : node.alternate
                 if (block) {
-                    this.eval(block, ctx);
+                    this.ast.push(this.eval(block, ctx) as t.BlockStatement);
                 }
             }
         }
