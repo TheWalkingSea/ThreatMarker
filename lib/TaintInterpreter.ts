@@ -215,9 +215,10 @@ export class TaintInterpreter {
                 expressions.push(
                     this.eval(expression, ctx) as TaintedLiteral
                 )
-            })
+            });
+
             for (let expression of expressions) {
-                if (expression == expressions[expressions.length - 1]) return expression; // Last element returns
+                if (expression == expressions[expressions.length - 1]) return expression; // Last element returns TaintedLiteral
 
                 this.eval(t.expressionStatement(get_repr(expression)), ctx) // Convert to expression & re-evaluate
             }
@@ -228,6 +229,10 @@ export class TaintInterpreter {
             let operand = this.eval(node.argument) as TaintedLiteral;
 
             if (operand.isTainted) return {
+                node: t.unaryExpression(
+                    node.operator,
+                    get_repr(operand)
+                ),
                 isTainted: true
             } // Taintness is inherited
 
