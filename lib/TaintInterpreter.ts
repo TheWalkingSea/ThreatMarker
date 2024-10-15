@@ -328,11 +328,6 @@ export class TaintInterpreter {
 
                 if (right_id.isTainted) { // If right is tainted, taint assignment
                     ctx.environment.assign(name, {
-                        node: t.assignmentExpression(
-                            node.operator,
-                            t.identifier(name),
-                            get_repr(right_id)
-                        ),
                         isTainted: true
                     }) // Taint is passed down
                     return {
@@ -348,8 +343,16 @@ export class TaintInterpreter {
                 let right = right_id.value;
                 let left_id = ctx.environment.resolve(name) as TaintedLiteral;
 
-                if (left_id.isTainted && node.operator !== '=') { // If left is tainted and an operator, return
-                    return;
+                // If left is tainted and not '=' operator (overrides taint), then the whole statement is tainted
+                if (left_id.isTainted && node.operator !== '=') {
+                    return {
+                        node: t.assignmentExpression(
+                            node.operator,
+                            t.identifier(name),
+                            get_repr(right_id)
+                        ),
+                        isTainted: true
+                    };
                 }
 
                 let value;
