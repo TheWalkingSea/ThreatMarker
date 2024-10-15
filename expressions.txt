@@ -1,0 +1,40 @@
+'EmptyStatement', ✔️
+'ExpressionStatement', ✔️
+'SequenceExpression', ✔️
+'Identifier', ✔️
+'BinaryExpression', ✔️
+'UnaryExpression',
+'StringLiteral', ✔️
+'NumericLiteral', ✔️
+'NullLiteral' ✔️
+'BooleanLiteral' ✔️
+'RegExpLiteral', ✔️
+'IfStatement', ✔️
+'BlockStatement' ✔️
+'CallExpression',
+'FunctionExpression',
+'VariableDeclaration', ✔️
+'VariableDeclarator', ✔️
+'FunctionDeclaration',
+'AssignmentExpression', ✔️
+'ObjectExpression',
+'ThisExpression',
+'ReturnStatement',
+'ObjectProperty',
+'WhileStatement',
+'DoWhileStatement',
+'UpdateExpression',
+'LogicalExpression',
+'ForStatement',
+'ContinueStatement',
+'BreakStatement',
+'MemberExpression',
+'SwitchStatement',
+'SwitchCase',
+'ArrayExpression',
+'ConditionalExpression',
+'NewExpression',
+'TryStatement',
+'CatchClause',
+'ThrowStatement',
+'ForInStatement',
