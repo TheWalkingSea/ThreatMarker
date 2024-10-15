@@ -333,15 +333,20 @@ export class TaintInterpreter {
         }
 
         if (t.isBlockStatement(node)) {
+            this.return_stmt_flag = true;
+            let block: Array<t.Statement> = [];
             for (let i=0;i<node.body.length;i++) {
                 let stmt = node.body[i]
-                this.eval(stmt, ctx);
+                
+                let result = this.eval(stmt, ctx);
+                if (result) block.push(result as t.Statement);
+
 
                 if (this.callstack[this.callstack.length - 1] !== ctx) { // Used for functions
                     break; // No longer in context - Break out of block
                 }
             }
-            return;
+            return t.blockStatement(block);
         }
 
         if (t.isAssignmentExpression(node)) {
