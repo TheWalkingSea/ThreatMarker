@@ -281,9 +281,10 @@ export class TaintInterpreter {
             let test = this.eval(node.test) as TaintedLiteral;
 
             if (test.isTainted) { // All subsequent nodes are tainted
-                for (let block of [node.consequent, node.alternate]) { // Run both blocks
 
-                    if (!block) return;
+                const simplify_conditional_block = (block: t.BlockStatement): t.BlockStatement | t.ExpressionStatement | null => {
+                    
+                    if (!block) return null;
 
                     let isolatedCtx = new ExecutionContext(
                         ctx.thisValue,
@@ -295,7 +296,7 @@ export class TaintInterpreter {
                     this.callstack.push(isolatedCtx);
 
                     // Execute the block
-                    this.eval(block, isolatedCtx);
+                    let simplified_block = this.eval(block, isolatedCtx, true) as t.BlockStatement | t.ExpressionStatement;
 
                     // Algorithm: Any variables defined in the inner block are tainted in outer scope
                     this.callstack.pop() // Remove isolatedEnv
@@ -303,7 +304,23 @@ export class TaintInterpreter {
                         // Due to the assumption all definitions use var, all variables defined in the inner block will leak into the outer block
                         ctx.environment.setTaint(key, true);
                     })
+
+                    return simplified_block;
                 }
+
+
+                let consequent = simplify_conditional_block(node.consequent as t.BlockStatement) as t.BlockStatement;
+                let alternate = simplify_conditional_block(node.alternate as t.BlockStatement); // Could be null
+
+                this.ast.push(
+                    t.ifStatement(
+                        get_repr(test), 
+                        consequent, 
+                        alternate
+                    )
+                )
+
+                return;
             } else { // Execute normally
                 let block = test.value ? node.consequent : node.alternate;
                 if (block) {
