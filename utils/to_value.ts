@@ -14,3 +14,11 @@ export function Value(value: any): t.Literal {
         throw new Error(`Unsupported type for value: ${typeof value}`);
     }
 }
+
+
+// Technically returns t.Node | t.Literal but babel hasn't updated the Expression statements to accept said types
+export function get_repr(tl: TaintedLiteral): t.Expression {
+    if (!tl?.node && !tl?.value) throw new Error(`Representation of TaintedLiteral: ${tl} not defined`)
+
+    return tl?.node || Value(tl.value);
+}
