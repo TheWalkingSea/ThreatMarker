@@ -1,5 +1,5 @@
 node_modules
-input
-out
+data/*/*
+test_data/*/*
 
 !.gitkeep
