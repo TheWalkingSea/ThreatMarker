@@ -7,13 +7,21 @@ import { Value, get_repr } from './../utils/to_value';
 export class TaintInterpreter {
     callstack: Array<ExecutionContext>;
     ast: Array<t.Node>;
+    return_stmt_flag: Boolean;
 
     constructor(execCtx: ExecutionContext) {
         this.callstack = [execCtx];
         this.ast = []
+        this.return_stmt_flag = false; // Tells eval to return stmt instead of adding to AST
     }
 
-    eval(node: t.Node, ctx: ExecutionContext = this.callstack[this.callstack.length - 1], return_block: Boolean = false): t.Node | TaintedLiteral | undefined  {
+    append_ast(stmt: t.Node): void | t.Node {
+        if (this.return_stmt_flag) return stmt;
+
+        this.ast.push(stmt);
+    }
+
+    eval(node: t.Node, ctx: ExecutionContext = this.callstack[this.callstack.length - 1]): t.Node | TaintedLiteral | void  {
         if (t.isProgram(node)) {
             node.body.forEach((node) => {
                 this.eval(node, ctx);
@@ -27,11 +35,7 @@ export class TaintInterpreter {
             // if (val?.value) return; // Constant untainted variable => return
             let expression = t.expressionStatement(get_repr(val));
 
-            if (return_block) return expression;
-            else {
-                this.ast.push(expression);
-                return;
-            }
+            return this.append_ast(expression);
         }
 
         if (t.isLiteral(node)) {
@@ -66,8 +70,7 @@ export class TaintInterpreter {
                     this.eval(declaration, ctx) as t.VariableDeclarator
                 );
             })
-            this.ast.push(t.variableDeclaration(node.kind, declarations)); // Add declarations to ast
-            return;
+            return this.append_ast(t.variableDeclaration(node.kind, declarations)); // Add declarations to ast
         }
 
         if (t.isVariableDeclarator(node)) {
@@ -82,23 +85,24 @@ export class TaintInterpreter {
                         node: init.node,
                         isTainted: true
                     });
-                    return t.variableDeclarator(t.identifier(id), init.node);
+                    return t.variableDeclarator(t.identifier(id), init.node); // Gets added to AST by VariableDeclaration or alike
                 } else { // If constant add to env and assign identifier to const
                     ctx.environment.assign(id, {
                         value: init.value,
                         isTainted: false
                     });
-                    return t.variableDeclarator(t.identifier(id), Value(init.value));
+                    return t.variableDeclarator(t.identifier(id), Value(init.value)); // Gets added to AST by VariableDeclaration or alike
                 }
             }
 
+            // Gets added to AST by VariableDeclaration or alike
             return t.variableDeclarator(t.identifier(id)); // No value, just return identifier
         }
 
         if (t.isIdentifier(node)) {
             // Return the identifier, if it is not defined then assume it is tainted
             try {
-                let val = ctx.environment.resolve(node.name);
+                let val: TaintedLiteral = ctx.environment.resolve(node.name);
                 if (val?.node) {
                     val.node = t.identifier(node.name); // Replace the node with the identifier, instead of its representation
                 }
@@ -273,8 +277,7 @@ export class TaintInterpreter {
                 isTainted: false
             }
         }
-
-        
+  
         if (t.isIfStatement(node)) {
             // If the condition is tainted, run both blocks isolated & taint any variables written from outer scope
             // If the condition is not tainted, remove the redundant block
@@ -296,7 +299,9 @@ export class TaintInterpreter {
                     this.callstack.push(isolatedCtx);
 
                     // Execute the block
-                    let simplified_block = this.eval(block, isolatedCtx, true) as t.BlockStatement | t.ExpressionStatement;
+                    this.return_stmt_flag = true;
+                    let simplified_block = this.eval(block, isolatedCtx) as t.BlockStatement | t.ExpressionStatement;
+                    this.return_stmt_flag = false;
 
                     // Algorithm: Any variables defined in the inner block are tainted in outer scope
                     this.callstack.pop() // Remove isolatedEnv
@@ -308,19 +313,16 @@ export class TaintInterpreter {
                     return simplified_block;
                 }
 
-
                 let consequent = simplify_conditional_block(node.consequent as t.BlockStatement) as t.BlockStatement;
                 let alternate = simplify_conditional_block(node.alternate as t.BlockStatement); // Could be null
 
-                this.ast.push(
+                return this.append_ast(
                     t.ifStatement(
                         get_repr(test), 
                         consequent, 
                         alternate
                     )
                 )
-
-                return;
             } else { // Execute normally
                 let block = test.value ? node.consequent : node.alternate;
                 if (block) {
@@ -339,6 +341,7 @@ export class TaintInterpreter {
                     break; // No longer in context - Break out of block
                 }
             }
+            return;
         }
 
         if (t.isAssignmentExpression(node)) {
