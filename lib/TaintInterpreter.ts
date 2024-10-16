@@ -445,7 +445,7 @@ export class TaintInterpreter {
                     node: t.assignmentExpression(
                         node.operator,
                         t.identifier(name),
-                        Value(value)
+                        Value(right)
                     ),
                     isTainted: false
                 } // Will be wrapped in another expression. ExpressionStatment, for example.
