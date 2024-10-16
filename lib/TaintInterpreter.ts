@@ -11,7 +11,7 @@ export class TaintInterpreter {
 
     constructor(execCtx: ExecutionContext) {
         this.callstack = [execCtx];
-        this.ast = []
+        this.ast = [];
         this.return_stmt_flag = false; // Tells eval to return stmt instead of adding to AST
     }
 
@@ -336,10 +336,11 @@ export class TaintInterpreter {
         }
 
         if (t.isBlockStatement(node)) {
+            let return_block_flag = this.return_stmt_flag; // Temp store the return_stmt_flag
             this.return_stmt_flag = true;
             let block: Array<t.Statement> = [];
             for (let i=0;i<node.body.length;i++) {
-                let stmt = node.body[i]
+                let stmt = node.body[i];
                 
                 let result = this.eval(stmt, ctx);
                 if (result) block.push(result as t.Statement);
@@ -349,7 +350,8 @@ export class TaintInterpreter {
                     break; // No longer in context - Break out of block
                 }
             }
-            return t.blockStatement(block);
+            this.return_stmt_flag = return_block_flag; // Restore state saved from earlier
+            return this.append_ast(t.blockStatement(block));
         }
 
         if (t.isAssignmentExpression(node)) {
