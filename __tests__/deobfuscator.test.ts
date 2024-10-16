@@ -53,5 +53,7 @@ test('Sequence Expression', test_ast('sequence_exp'))
 test('Literals', test_ast('literal'))
 test('BinaryExpression', test_ast('binary_exp'))
 test('AssignmentExpression', test_ast('assignment_exp'))
-test('IfStatement Tainted', test_ast('if_stmt_taint'))
-test('IfStatement Untainted', test_ast('if_stmt_untainted'))
+describe("IfStatement", () => {
+    test('IfStatement Tainted', test_ast('if_stmt_taint'));
+    test('IfStatement Untainted', test_ast('if_stmt_taint'));
+});
