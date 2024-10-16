@@ -55,5 +55,6 @@ test('BinaryExpression', test_ast('binary_exp'))
 test('AssignmentExpression', test_ast('assignment_exp'))
 describe("IfStatement", () => {
     test('IfStatement Tainted', test_ast('IfStatement/if_stmt_taint'));
-    test('IfStatement Untainted', test_ast('IfStatement/if_stmt_taint'));
+    test('IfStatement Untainted', test_ast('IfStatement/if_stmt_untainted'));
+    test('Simplify IfBlock in a Tainted IfStatement', test_ast('IfStatement/if_stmt_simplify_taint'));
 });
