@@ -1,20 +1,20 @@
 'EmptyStatement', ✔️
 'ExpressionStatement', ✔️
-'SequenceExpression', ✔️
-'Identifier', ✔️
+'SequenceExpression', ✔️✔️
+'Identifier', ✔️✔️
 'BinaryExpression', ✔️
 'UnaryExpression',
-'StringLiteral', ✔️
-'NumericLiteral', ✔️
-'NullLiteral' ✔️
-'BooleanLiteral' ✔️
-'RegExpLiteral', ✔️
+'StringLiteral', ✔️✔️
+'NumericLiteral', ✔️✔️
+'NullLiteral' ✔️✔️
+'BooleanLiteral' ✔️✔️
+'RegExpLiteral', ✔️✔️
 'IfStatement', ✔️
 'BlockStatement' ✔️
 'CallExpression',
 'FunctionExpression',
-'VariableDeclaration', ✔️
-'VariableDeclarator', ✔️
+'VariableDeclaration', ✔️✔️
+'VariableDeclarator', ✔️✔️
 'FunctionDeclaration',
 'AssignmentExpression', ✔️
 'ObjectExpression',
