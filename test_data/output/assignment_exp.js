@@ -9,3 +9,7 @@ b += 5;
 var c = document;
 c = 7;
 7;
+
+var d = document;
+d = document + 7;
+d;
