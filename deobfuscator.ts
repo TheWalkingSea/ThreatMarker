@@ -1,7 +1,6 @@
 import * as parser from '@babel/parser';
 import * as t from '@babel/types';
 import * as fs from 'node:fs';
-import traverse from '@babel/traverse';
 import generator from '@babel/generator';
 import { TaintInterpreter } from './lib/TaintInterpreter';
 import { ExecutionContext } from './lib/ExecutionContext';
@@ -11,7 +10,6 @@ import { Environment } from './lib/Environment';
 const d0 = new Date()
 
 const INPUT: string = "./input/index.js"
-const OUTPUT: string = './out/index.trace.js';
 
 
 const data = fs.readFileSync(INPUT, 'utf8');
