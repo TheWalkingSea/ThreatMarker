@@ -54,6 +54,6 @@ test('Literals', test_ast('literal'))
 test('BinaryExpression', test_ast('binary_exp'))
 test('AssignmentExpression', test_ast('assignment_exp'))
 describe("IfStatement", () => {
-    test('IfStatement Tainted', test_ast('if_stmt_taint'));
-    test('IfStatement Untainted', test_ast('if_stmt_taint'));
+    test('IfStatement Tainted', test_ast('IfStatement/if_stmt_taint'));
+    test('IfStatement Untainted', test_ast('IfStatement/if_stmt_taint'));
 });
