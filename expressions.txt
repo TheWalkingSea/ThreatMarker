@@ -2,8 +2,8 @@
 'ExpressionStatement', ✔️
 'SequenceExpression', ✔️✔️
 'Identifier', ✔️✔️
-'BinaryExpression', ✔️
-'UnaryExpression',
+'BinaryExpression', ✔️✔️
+'UnaryExpression', ✔️
 'StringLiteral', ✔️✔️
 'NumericLiteral', ✔️✔️
 'NullLiteral' ✔️✔️
