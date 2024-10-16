@@ -6,3 +6,6 @@ var b = 2;
 b += a;
 b;
 
+var c = document;
+c = b;
+c;
