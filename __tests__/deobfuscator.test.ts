@@ -58,3 +58,4 @@ describe("IfStatement", () => {
     test('IfStatement Untainted', test_ast('IfStatement/if_stmt_untainted'));
     test('Simplify IfBlock in a Tainted IfStatement', test_ast('IfStatement/if_stmt_simplify_taint'));
 });
+test('BlockStatement', test_ast('block_stmt'))
