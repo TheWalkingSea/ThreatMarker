@@ -3,7 +3,7 @@
 'SequenceExpression', ✔️✔️
 'Identifier', ✔️✔️
 'BinaryExpression', ✔️✔️
-'UnaryExpression', ✔️
+'UnaryExpression', ✔️✔️
 'StringLiteral', ✔️✔️
 'NumericLiteral', ✔️✔️
 'NullLiteral' ✔️✔️
@@ -16,7 +16,7 @@
 'VariableDeclaration', ✔️✔️
 'VariableDeclarator', ✔️✔️
 'FunctionDeclaration',
-'AssignmentExpression', ✔️
+'AssignmentExpression', ✔️✔️
 'ObjectExpression',
 'ThisExpression',
 'ReturnStatement',
