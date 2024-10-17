@@ -6,11 +6,18 @@ export class Environment {
     record: Map<string, TaintedLiteral>;
     parent: Environment | null;
     taint_parent_writes: boolean;
+    taint_parent_reads: boolean;
 
-    constructor(record = new Map(), parent = null, taint_parent_writes = false) {
+    constructor(
+            record = new Map(), 
+            parent: Environment | null = null, 
+            taint_parent_writes = false,
+            taint_parent_reads = false
+        ) {
         this.record = record;
         this.parent = parent;
-        this.taint_parent_writes = taint_parent_writes; // For tainted if blocks, any writes outside of block is auto tainted
+        this.taint_parent_writes = taint_parent_writes; // For tainted if blocks: any writes outside of block is auto tainted
+        this.taint_parent_reads = taint_parent_reads; // For FunctionStatements: variables outside of function should be tainted
     }
 
     declare(name: string): void {
@@ -77,6 +84,14 @@ export class Environment {
 
     resolve(name: string): TaintedLiteral {
         let env: Environment = this._resolve_parent(name);
+
+        if (this.taint_parent_reads && env !== this) {
+            return {
+                node: t.identifier(name),
+                isTainted: true
+            };
+        }
+
         return env.record.get(name) as TaintedLiteral;
     }
 
