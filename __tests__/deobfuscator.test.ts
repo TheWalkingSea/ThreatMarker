@@ -34,11 +34,14 @@ function test_ast(file: string): jest.ProvidesCallback {
             comments: false
         }
 
+        // @ts-ignore - Array<t.Node> can be comprehended by program but still throws a type-check err
+        const deobfuscated = generator(t.program(ti.ast), CONFIG).code
+        console.log(`Deobfuscated program:\n${deobfuscated}`)
+
         expect(
-            // @ts-ignore - Array<t.Node> can be comprehended by program but still throws a type-check err
-            generator(t.program(ti.ast), CONFIG)
+            deobfuscated
         ).toEqual(
-            generator(output_ast, CONFIG)
+            generator(output_ast, CONFIG).code
         );
         
         // @ts-ignore
@@ -65,4 +68,9 @@ describe("FunctionDeclaration", () => {
     test('Outer Scope Var Simplification', test_ast('FunctionDeclaration/outer_scope'));
     test('Parameter Simplification', test_ast('FunctionDeclaration/parameters_taint'));
     test('Isolate Outer Variables', test_ast('FunctionDeclaration/isolation'));
+});
+describe("CallExpression", () => {
+    test('CallExpression', test_ast('CallExpression/CallExpression'));
+    test('Tainted Return Value', test_ast('CallExpression/tainted'));
+    test('Untainted Return Value', test_ast('CallExpression/untainted'));
 });
