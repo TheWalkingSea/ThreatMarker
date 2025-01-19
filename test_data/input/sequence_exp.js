@@ -1,3 +1,4 @@
 var a;
-var b;
-b = 2, 3, b;
+var b = 4;
+b = (2, b, 3);
+b;
