@@ -1,4 +1,4 @@
-import { Node, Expression } from '@babel/types';
+import { Expression } from '@babel/types';
 
 declare global {
     interface TaintedLiteral {
