@@ -472,6 +472,7 @@ export class TaintInterpreter {
         // Correct implementation of `this` object
         // arguments is a list of mixed Tainted and Untainted variables
         // toString method on functions
+        // Support all argument types (...args)
         if (t.isFunctionDeclaration(node)) {
             if (node.generator || node.async) throw new NotImplementedException("Generator or Async FunctionDeclaration is not supported");
             if (t.isRestElement(node.params[0]) || t.isPattern(node.params[0])) throw new NotImplementedException("RestElement and Patterns not supported for FunctionDeclarations");
@@ -526,7 +527,7 @@ export class TaintInterpreter {
             const record: Map<string, TaintedLiteral> = new Map();
             for (let param of params) {
                 record.set(param, {
-                    value: t.identifier(param),
+                    node: t.identifier(param),
                     isTainted: true // parameters are tainted
                 })
             }
