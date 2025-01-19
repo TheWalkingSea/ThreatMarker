@@ -23,7 +23,7 @@
 'ObjectProperty',
 'WhileStatement',
 'DoWhileStatement',
-'UpdateExpression',
+'UpdateExpression', ✔️✔️
 'LogicalExpression',
 'ForStatement',
 'ContinueStatement',

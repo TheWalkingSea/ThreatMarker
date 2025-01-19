@@ -81,3 +81,5 @@ describe("WhileLoop", () => {
     test('Dynamic Variable', test_ast('WhileLoop/taint_ext_var'));
     test('Static Variable', test_ast('WhileLoop/untaint_ext_var'));
 });
+test('UnaryExpression', test_ast('unary_exp'));
+test('UpdateExpression', test_ast('update_expr'));

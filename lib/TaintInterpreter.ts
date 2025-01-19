@@ -294,6 +294,43 @@ export class TaintInterpreter {
                 isTainted: false
             }
         }
+
+        // TODO
+        // Simplify left hand argument
+        if (t.isUpdateExpression(node)) {
+            // If the operand is tainted, return taint
+            let operand = this.eval(node.argument) as TaintedLiteral;
+
+            if (operand.isTainted) return {
+                node: t.updateExpression(
+                    node.operator,
+                    get_repr(operand),
+                    node.prefix
+                ),
+                isTainted: true
+            } // Taintness is inherited
+
+            let value;
+            if (node.operator === "++") {
+                value = operand.value + (node.prefix ? 1 : 0); // Add one if ++VAR
+                operand.value += 1;
+            } else if (node.operator === "--") {
+                value = operand.value - (node.prefix ? 1 : 0); // Add one if --VAR
+                operand.value -= 1;
+            }
+
+            const update_expr = t.updateExpression(
+                node.operator,
+                node.argument,
+                node.prefix
+            )
+
+            return {
+                node: update_expr,
+                value: value,
+                isTainted: false
+            }
+        }
   
         if (t.isIfStatement(node)) {
             // If the condition is tainted, run both blocks isolated & taint any variables written from outer scope
@@ -729,7 +766,7 @@ export class TaintInterpreter {
             )
 
             return this.append_ast(while_stmt)
-            
+
         }
 
 
