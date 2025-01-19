@@ -74,3 +74,10 @@ describe("CallExpression", () => {
     test('Tainted Return Value', test_ast('CallExpression/tainted'));
     test('Untainted Return Value', test_ast('CallExpression/untainted'));
 });
+describe("WhileLoop", () => {
+    test('WhileLoop', test_ast('WhileLoop/while_loop'));
+    test('Simplify Test Variable', test_ast('WhileLoop/simplify_test'));
+    test('Tainted Test Variable', test_ast('WhileLoop/tainted_test'));
+    test('Dynamic Variable', test_ast('WhileLoop/taint_ext_var'));
+    test('Static Variable', test_ast('WhileLoop/untaint_ext_var'));
+});
