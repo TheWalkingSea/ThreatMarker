@@ -59,3 +59,10 @@ describe("IfStatement", () => {
     test('Simplify IfBlock in a Tainted IfStatement', test_ast('IfStatement/if_stmt_simplify_taint'));
 });
 test('BlockStatement', test_ast('block_stmt'))
+describe("FunctionDeclaration", () => {
+    test('Declaration', test_ast('FunctionDeclaration/FunctionDeclaration'));
+    test('Inner Scope Var Simplification', test_ast('FunctionDeclaration/inner_scope'));
+    test('Outer Scope Var Simplification', test_ast('FunctionDeclaration/outer_scope'));
+    test('Parameter Simplification', test_ast('FunctionDeclaration/parameters_taint'));
+    test('Isolate Outer Variables', test_ast('FunctionDeclaration/isolation'));
+});
