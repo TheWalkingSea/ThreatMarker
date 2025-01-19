@@ -568,11 +568,16 @@ export class TaintInterpreter {
             const result = func(args);
 
             // Add to AST
-            const seq_expr = t.sequenceExpression([
-                node,
-                result
-            ])
-            return this.append_ast(seq_expr);
+            let expr;
+            if (!result.isTainted) {
+                expr = t.sequenceExpression([
+                    node,
+                    result
+                ]);
+            } else {
+                expr = node;
+            }
+            return this.append_ast(expr);
 
         }
 
