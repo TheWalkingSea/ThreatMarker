@@ -102,7 +102,7 @@ export class TaintInterpreter {
                         value: init.value,
                         isTainted: false
                     });
-                    return t.variableDeclarator(t.identifier(id), Value(init.value)); // Gets added to AST by VariableDeclaration or alike
+                    return t.variableDeclarator(t.identifier(id), get_repr(init)); // Gets added to AST by VariableDeclaration or alike
                 }
             }
 
@@ -592,10 +592,8 @@ export class TaintInterpreter {
                     node,
                     get_repr(result)
                 ]);
-                return {
-                    node: seq_expr,
-                    isTainted: false
-                };
+                result.node = seq_expr;
+                return result;
             }
 
             // Return value is tainted
