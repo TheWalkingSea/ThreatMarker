@@ -4,6 +4,7 @@ import { NotImplementedException } from "./NotImplementedException";
 import { ReferenceException } from "./ReferenceException";
 import * as t from '@babel/types';
 import { Value, get_repr } from './../utils/to_value';
+import { exec } from "node:child_process";
 export class TaintInterpreter {
     callstack: Array<ExecutionContext>;
     ast: Array<t.Node>;
@@ -612,6 +613,126 @@ export class TaintInterpreter {
             const return_stmt = t.returnStatement(get_repr(this.returnValue));
             return this.append_ast(return_stmt);
         }
+
+
+        // Error Support
+        
+        // TODO:
+        // Catch destructuring patterns
+        // if (t.isTryStatement(node)) {
+        //     try { // Will also catch any errors with the deobfuscator, so proceed with caution
+        //         this.eval(node.block);
+        //     } catch (error) {
+        //         // Since it is a BlockStatement, it can effect outer variables
+        //         // Therefore, error must be added and removed manually
+        //         const handler = node.handler as t.CatchClause;
+
+        //         let original_error_param;
+        //         // Set error parameter
+        //         if (handler.param) { // Assume param is an identifier
+        //             let param_name = (handler.param as t.Identifier).name;
+        //             try {
+        //                 // Try resolving for name
+        //                 original_error_param = ctx.environment.resolve(param_name);
+        //             } catch (error) {
+        //                 if (!(error instanceof ReferenceException)) throw error;
+        //                 ctx.environment.declare(param_name); // Declare error variable if not defined
+        //             }
+                    
+        //             // Set error as tainted
+        //             ctx.environment.assign(param_name, {
+        //                 node: t.identifier(param_name),
+        //                 isTainted: true
+        //             })
+        //         }
+
+        //         // Evaluate block
+        //         this.eval(handler.body);
+
+
+
+
+
+
+        //     } finally {
+
+        //     }
+        // }
+
+        // if (t.isThrowStatement(node)) {
+        //     const arg = this.eval(node.argument, ctx) as TaintedLiteral;
+
+        //     const throw_stmt = t.throwStatement(get_repr(arg));
+        //     const ret = this.append_ast(throw_stmt);
+
+        //     throw arg;
+        //     return ret;
+        // }
+
+        // Loops
+
+        if (t.isWhile(node)) {
+            // Execute loop
+            let test = this.eval(node.test, ctx) as TaintedLiteral;
+
+            // Tracks any variables that have not changed
+            // true means untainted, false means tainted => ignore !!
+            let unchanged_state: Map<string, boolean> = new Map();
+            
+            ctx.environment.get_deep_copy().forEach((value: TaintedLiteral, key: string) => {
+                if (!value.isTainted) unchanged_state.set(key, true); // Push untainted variables to unchanged_state
+            })
+
+            while (!test.isTainted && test.value) { // Quit if test is taint or test is False
+
+                // Evaluate Block
+                this.eval(node.body, ctx)
+
+                // Check for any differing variables
+                ctx.environment.get_deep_copy().forEach((value: TaintedLiteral, key: string) => {
+                    if (value.isTainted || unchanged_state.get(key) !== value.value) { // Tainted or value changed
+                        unchanged_state.set(key, false); // Tainted !
+                    }
+                })
+            }
+
+            // Add loop to AST
+
+            // Get untainted records
+            const record = new Map();
+            unchanged_state.forEach((value: boolean, key: string) => {
+                if (value) { // If untainted
+                    record.set(key, ctx.environment.resolve(key)); // Retrieve from environment; Recall that the value has not changed
+                }
+            })
+
+            // Create environment
+            // Ran in isolation -> parent = null
+            const env = new Environment(record, null, false, false, true);
+            const exec_ctx = new ExecutionContext(this, env);
+
+            this.callstack.push(exec_ctx);
+
+            // Run block in isolation
+            this.return_stmt_flag = true; // returns the block instead of result
+            const body = this.eval(node.body, exec_ctx) as t.BlockStatement;
+            this.return_stmt_flag = false;
+
+            const test_stmt = this.eval(node.test, exec_ctx) as TaintedLiteral;
+
+            // Remove ExecutionContext
+            this.callstack.pop()
+
+            const while_stmt = t.whileStatement(
+                get_repr(test_stmt), 
+                body
+            )
+
+            return this.append_ast(while_stmt)
+            
+        }
+
+
 
         throw new NotImplementedException(node.type)
     }
