@@ -8,13 +8,16 @@ export class TaintInterpreter {
     callstack: Array<ExecutionContext>;
     ast: Array<t.Node>;
     return_stmt_flag: Boolean;
-    returnValue: any;
+    returnValue: TaintedLiteral;
 
     constructor(execCtx: ExecutionContext) {
         this.callstack = [execCtx];
         this.ast = [];
         this.return_stmt_flag = false; // Tells append_ast to return stmt instead of adding to AST; used for manipulating BlockStatement
-        this.returnValue; // Used for Function Runners; saves the state of the return value
+        this.returnValue = {
+            value: null, 
+            isTainted: false
+        }; // Used for Function Runners; saves the state of the return value
     }
 
     append_ast(stmt: t.Node): void | t.Node {
@@ -226,18 +229,23 @@ export class TaintInterpreter {
 
         if (t.isSequenceExpression(node)) {
             // Just executes every expression, if the last expression is tainted, return taint - Implicitly tainted
-            let expressions: Array<TaintedLiteral> = [];
-            node.expressions.forEach((expression) => {
+            let expressions: Array<t.Expression> = [];
+            let finalValue;
+            node.expressions.forEach((expression, index) => {
+                let value = this.eval(expression, ctx) as TaintedLiteral;
                 expressions.push(
-                    this.eval(expression, ctx) as TaintedLiteral
+                    get_repr(value)
                 )
+
+                // Last element -> return
+                if (index == (node.expressions.length - 1)) {
+                    const seq_expr = t.sequenceExpression(expressions)
+                    value.node = seq_expr;
+                    finalValue = value;
+                }
             });
 
-            for (let expression of expressions) {
-                if (expression == expressions[expressions.length - 1]) return expression; // Last element returns TaintedLiteral
-
-                this.eval(t.expressionStatement(get_repr(expression)), ctx) // Convert to expression & re-evaluate
-            }
+            return finalValue;
         }
 
         if (t.isUnaryExpression(node)) {
@@ -452,11 +460,13 @@ export class TaintInterpreter {
                     isTainted: false
                 });
 
+                right_id.value = right;
+
                 return {
                     node: t.assignmentExpression(
                         node.operator,
                         t.identifier(name),
-                        Value(right)
+                        get_repr(right_id)
                     ),
                     isTainted: false
                 } // Will be wrapped in another expression. ExpressionStatment, for example.
@@ -507,8 +517,14 @@ export class TaintInterpreter {
                 self.callstack.push(exec_ctx);
 
                 // Run block in isolation
-                self.returnValue = null;
+                self.returnValue = {
+                    value: null,
+                    isTainted: false
+                };
+
+                self.return_stmt_flag = true; // Enable this so that code does not dupe
                 self.eval(node.body, exec_ctx); // Executes block
+                self.return_stmt_flag = false;
 
                 // Remove ExecutionContext
                 self.callstack.pop()
@@ -568,25 +584,35 @@ export class TaintInterpreter {
 
             const args = node.arguments.forEach((n) => this.eval(n, ctx));
 
-            const result = func(args);
+            const result: TaintedLiteral = func(args);
 
             // Add to AST
-            let expr;
-            if (!result.isTainted) {
-                expr = t.sequenceExpression([
+            if (!result.isTainted) { // Return value is not tainted
+                const seq_expr = t.sequenceExpression([
                     node,
-                    result
+                    get_repr(result)
                 ]);
-            } else {
-                expr = node;
+                return {
+                    node: seq_expr,
+                    isTainted: false
+                };
             }
-            return this.append_ast(expr);
+
+            // Return value is tainted
+            return {
+                node: node,
+                isTainted: true
+            }
 
         }
 
         if (t.isReturnStatement(node)) {
-            if (node.argument) this.returnValue = this.eval(node.argument, ctx);
+            if (node.argument) this.returnValue = this.eval(node.argument, ctx) as TaintedLiteral;
             this.callstack.pop(); // Escape function
+
+            // Add to AST
+            const return_stmt = t.returnStatement(get_repr(this.returnValue));
+            return this.append_ast(return_stmt);
         }
 
         throw new NotImplementedException(node.type)
