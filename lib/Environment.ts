@@ -9,7 +9,8 @@ export class Environment {
     taint_parent_reads: boolean;
     ignore_reference_exception: boolean
 
-    constructor(record = new Map(), 
+    constructor(
+        record = new Map(), 
         parent: Environment | null = null, 
         taint_parent_writes = false, 
         taint_parent_reads = false, 
@@ -98,6 +99,16 @@ export class Environment {
         return env.record.get(name) as TaintedLiteral;
     }
 
+    get_deep_copy(records: Map<string, TaintedLiteral> = new Map()): Map<string, TaintedLiteral> {
+        this.record.forEach((value, key) => {
+            records.set(key, value);
+        })
+        
+        if (!this.parent) return records;
+
+        return this.parent.get_deep_copy(records);
+    }
+
     _resolve_parent(name: string): Environment {
         if (this.record.has(name)) {
             return this; // Checked if it exists above
@@ -116,4 +127,5 @@ export class Environment {
             return this.parent._resolve_parent(name);
         }
     }
+
 }
