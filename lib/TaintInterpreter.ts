@@ -8,11 +8,13 @@ export class TaintInterpreter {
     callstack: Array<ExecutionContext>;
     ast: Array<t.Node>;
     return_stmt_flag: Boolean;
+    returnValue: any;
 
     constructor(execCtx: ExecutionContext) {
         this.callstack = [execCtx];
         this.ast = [];
         this.return_stmt_flag = false; // Tells append_ast to return stmt instead of adding to AST; used for manipulating BlockStatement
+        this.returnValue; // Used for Function Runners; saves the state of the return value
     }
 
     append_ast(stmt: t.Node): void | t.Node {
@@ -505,13 +507,14 @@ export class TaintInterpreter {
                 self.callstack.push(exec_ctx);
 
                 // Run block in isolation
-                const result = self.eval(node.body, exec_ctx);
+                self.returnValue = null;
+                self.eval(node.body, exec_ctx); // Executes block
 
                 // Remove ExecutionContext
                 self.callstack.pop()
 
                 // @ts-ignore - Ignore `this` error
-                return new.target ? this : result; // When ran with new, return this
+                return new.target ? this : self.returnValue; // When ran with new, return this
             }
             if (name) {
                 ctx.environment.declare(name);
@@ -579,6 +582,11 @@ export class TaintInterpreter {
             }
             return this.append_ast(expr);
 
+        }
+
+        if (t.isReturnStatement(node)) {
+            if (node.argument) this.returnValue = this.eval(node.argument, ctx);
+            this.callstack.pop(); // Escape function
         }
 
         throw new NotImplementedException(node.type)
