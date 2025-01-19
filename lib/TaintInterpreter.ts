@@ -12,7 +12,7 @@ export class TaintInterpreter {
     constructor(execCtx: ExecutionContext) {
         this.callstack = [execCtx];
         this.ast = [];
-        this.return_stmt_flag = false; // Tells eval to return stmt instead of adding to AST
+        this.return_stmt_flag = false; // Tells append_ast to return stmt instead of adding to AST; used for manipulating BlockStatement
     }
 
     append_ast(stmt: t.Node): void | t.Node {
@@ -21,6 +21,12 @@ export class TaintInterpreter {
         this.ast.push(stmt);
     }
 
+    /** 
+     * Evaluates a node recursively
+     * @param {t.Node} node - The node being executed
+     * @param {ExecutionContext} ctx - The context in which the node is being executed in
+     * @returns {TaintedLiteral | void} - Returns a TaintedLiteral most the time, void when at the bottom of the tree. t.Node is to prevent type errors but will never be type t.Node
+     */
     eval(node: t.Node, ctx: ExecutionContext = this.callstack[this.callstack.length - 1]): t.Node | TaintedLiteral | void  {
         if (t.isProgram(node)) {
             node.body.forEach((node) => {
@@ -291,7 +297,6 @@ export class TaintInterpreter {
 
                     let isolatedCtx = new ExecutionContext(
                         ctx.thisValue,
-                        // @ts-expect-error - Environment is undefined in type checking so an error throws. Ignore
                         new Environment(new Map(), ctx.environment, true) // taint_parent_writes = true
                     )
                     
@@ -458,6 +463,115 @@ export class TaintInterpreter {
             if (t.isMemberExpression(node.left)) {
                 throw new NotImplementedException('MemberExpression')
             }
+
+        }
+
+        // Function support
+
+        // TODO: 
+        // Correct implementation of `this` object
+        // arguments is a list of mixed Tainted and Untainted variables
+        // toString method on functions
+        if (t.isFunctionDeclaration(node)) {
+            if (node.generator || node.async) throw new NotImplementedException("Generator or Async FunctionDeclaration is not supported");
+            if (t.isRestElement(node.params[0]) || t.isPattern(node.params[0])) throw new NotImplementedException("RestElement and Patterns not supported for FunctionDeclarations");
+            if (node.id && !t.isIdentifier(node.id)) throw new NotImplementedException(`FunctionDeclaration ID is of type ${typeof node.id} which is not supported`)
+
+            let name = node.id ? node.id.name : null; // Return FunctionDeclaration if name is null
+
+            // Function implementation
+            const params = (node.params as Array<t.Identifier>).map((param) => param.name); // For later: Convert to TaintLiteral?
+            const self = this; // Save the state of `this` beforehand, any future uses of `this` will be referenced with `self`
+            const parent_env = ctx.environment; // Runner will be set in a temporary environment
+            
+            // This function will encapsulate the functionality of the actual function, note that this is not the code that is being simplified, but simply used to be executed
+            const runner = function() {
+
+                // Define parameters
+                const activation_record: Map<string, TaintedLiteral | IArguments> = new Map();
+                for (let i=0;i<params.length;i++) {
+                    activation_record.set(params[i], arguments[i]) // arguments should be of type TaintLiteral when executed
+                }
+                activation_record.set('arguments', {
+                    value: arguments,
+                    isTainted: true // Assume arguments are tainted
+                });
+
+                // Add new ExecutionContext
+                const env = new Environment(activation_record, parent_env, false, true);
+                // @ts-ignore - Ignore `this` error
+                const exec_ctx = new ExecutionContext(this, env);
+                self.callstack.push(exec_ctx);
+
+                // Run block in isolation
+                const result = self.eval(node.body, exec_ctx);
+
+                // Remove ExecutionContext
+                self.callstack.pop()
+
+                // @ts-ignore - Ignore `this` error
+                return new.target ? this : result; // When ran with new, return this
+            }
+            if (name) {
+                ctx.environment.declare(name);
+                ctx.environment.assign(name, {
+                    value: runner,
+                    isTainted: false // technically function isn't tainted, but the value when executed may be
+                })
+            }
+
+            // Build body: Must be simplified - Should be ran in isolation
+
+            // Create parameters
+            const record: Map<string, TaintedLiteral> = new Map();
+            for (let param of params) {
+                record.set(param, {
+                    value: t.identifier(param),
+                    isTainted: true // parameters are tainted
+                })
+            }
+            record.set('arguments', {
+                value: arguments,
+                isTainted: true // parameters are tainted
+            });
+
+            // Ran in isolation => parent_env = null
+            const env = new Environment(record, null, false, false, true);
+            const exec_ctx = new ExecutionContext(self, env);
+            self.callstack.push(exec_ctx);
+
+            // Run block in isolation
+            self.return_stmt_flag = true; // returns the block instead of result
+            const body = self.eval(node.body, exec_ctx) as t.BlockStatement;
+            self.return_stmt_flag = false;
+
+            // Remove ExecutionContext
+            self.callstack.pop()
+
+            // Adding function to AST
+            const func_decl = t.functionDeclaration(
+                name ? t.identifier(name) : null,
+                node.params,
+                body
+            )
+            return name ? self.append_ast(func_decl) : func_decl
+        }
+
+        if (t.isCallExpression(node)) {
+            if (!t.isIdentifier(node.callee)) throw new NotImplementedException(`Function names of type ${typeof node.callee} not supported`)
+            
+            const func: Function = ctx.environment.resolve(node.callee.name).value as Function; // Gets the runner function
+
+            const args = node.arguments.forEach((n) => this.eval(n, ctx));
+
+            const result = func(args);
+
+            // Add to AST
+            const seq_expr = t.sequenceExpression([
+                node,
+                result
+            ])
+            return this.append_ast(seq_expr);
 
         }
 
