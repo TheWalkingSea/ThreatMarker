@@ -49,7 +49,7 @@ export class Environment {
             isTainted = entry.isTainted;
         }
         
-        if (value) {
+        if (value !== undefined) {
             env.record.set(name, {
                 value: value,
                 isTainted: isTainted

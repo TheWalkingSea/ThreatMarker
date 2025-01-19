@@ -251,12 +251,13 @@ export class TaintInterpreter {
 
         if (t.isUnaryExpression(node)) {
             // If the operand is tainted, return taint
-            let operand = this.eval(node.argument) as TaintedLiteral;
+            const operand = this.eval(node.argument, ctx) as TaintedLiteral;
 
             if (operand.isTainted) return {
                 node: t.unaryExpression(
                     node.operator,
-                    get_repr(operand)
+                    get_repr(operand),
+                    node.prefix
                 ),
                 isTainted: true
             } // Taintness is inherited
@@ -265,8 +266,12 @@ export class TaintInterpreter {
             let value;
             switch (node.operator) {
                 case 'void':
-                    value = void value;
-                    break;
+                    value = void operand.value;
+                    // void value returns undefined so it must be returned in a different way
+                    return {
+                        node: t.identifier('undefined'),
+                        isTainted: false
+                    }
                 case 'throw':
                     throw right;
                     break;
@@ -288,7 +293,7 @@ export class TaintInterpreter {
                 default:
                     throw new NotImplementedException(node.operator)
             }
-            
+
             return {
                 value: value,
                 isTainted: false
@@ -299,7 +304,7 @@ export class TaintInterpreter {
         // Simplify left hand argument
         if (t.isUpdateExpression(node)) {
             // If the operand is tainted, return taint
-            let operand = this.eval(node.argument) as TaintedLiteral;
+            let operand = this.eval(node.argument, ctx) as TaintedLiteral;
 
             if (operand.isTainted) return {
                 node: t.updateExpression(
@@ -310,6 +315,7 @@ export class TaintInterpreter {
                 isTainted: true
             } // Taintness is inherited
 
+            // Update Step
             let value;
             if (node.operator === "++") {
                 value = operand.value + (node.prefix ? 1 : 0); // Add one if ++VAR
@@ -335,7 +341,7 @@ export class TaintInterpreter {
         if (t.isIfStatement(node)) {
             // If the condition is tainted, run both blocks isolated & taint any variables written from outer scope
             // If the condition is not tainted, remove the redundant block
-            let test = this.eval(node.test) as TaintedLiteral;
+            let test = this.eval(node.test, ctx) as TaintedLiteral;
 
             if (test.isTainted) { // All subsequent nodes are tainted
 
@@ -492,7 +498,9 @@ export class TaintInterpreter {
                     default:
                         throw new NotImplementedException(node.operator)
                 }
-
+                
+                console.log(name)
+                console.log(value)
                 ctx.environment.assign(name, {
                     value: value,
                     isTainted: false
