@@ -13,6 +13,8 @@ export function Value(value: any): t.Literal {
     } else if (value instanceof RegExp) {
         return t.regExpLiteral(value.source, value.flags);
     } else {
+        console.debug(value);
+        console.debug(typeof value);
         throw new Error(`Unsupported type for value: ${value}, type: ${typeof value}`);
     }
 }
