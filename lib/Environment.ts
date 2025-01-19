@@ -6,11 +6,20 @@ export class Environment {
     record: Map<string, TaintedLiteral>;
     parent: Environment | null;
     taint_parent_writes: boolean;
+    taint_parent_reads: boolean;
+    ignore_reference_exception: boolean
 
-    constructor(record = new Map(), parent = null, taint_parent_writes = false) {
+    constructor(record = new Map(), 
+        parent: Environment | null = null, 
+        taint_parent_writes = false, 
+        taint_parent_reads = false, 
+        ignore_reference_exception = false
+    ) {
         this.record = record;
         this.parent = parent;
         this.taint_parent_writes = taint_parent_writes; // For tainted if blocks, any writes outside of block is auto tainted
+        this.taint_parent_reads = taint_parent_reads; // For function blocks, any reads outside of Environment is auto tainted
+        this.ignore_reference_exception = ignore_reference_exception; // For function blocks running in isolation, any parent references that are undefined are ignored
     }
 
     declare(name: string): void {
@@ -76,7 +85,16 @@ export class Environment {
     }
 
     resolve(name: string): TaintedLiteral {
-        let env: Environment = this._resolve_parent(name);
+        const env: Environment = this._resolve_parent(name); // Get the correct environment
+
+        // Check for taint_parent_reads
+        if (this.taint_parent_reads && env !== this) { // If parent is not the current env & taint_parent_reads is defined, return tainted identifier
+            return {
+                node: t.identifier(name),
+                isTainted: true
+            }
+        }
+
         return env.record.get(name) as TaintedLiteral;
     }
 
@@ -84,6 +102,15 @@ export class Environment {
         if (this.record.has(name)) {
             return this; // Checked if it exists above
         } else if (!this.parent) { // If parent is null, id is undefined
+            if (this.ignore_reference_exception) { // declare variable as tainted and return environment
+                this.record.set(name, {
+                    node: t.identifier(name),
+                    isTainted: true
+                });
+                return this;
+            }
+            
+            // error if special flag is not set
             throw new ReferenceException(name)
         } else { // If parent exists, try to resolve
             return this.parent._resolve_parent(name);
