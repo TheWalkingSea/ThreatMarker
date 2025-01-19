@@ -1,7 +1,7 @@
 var a = 2;
 
-while (a < 2 + 3) {
+while (false) {
     a++;
 }
 
-a;
+2;

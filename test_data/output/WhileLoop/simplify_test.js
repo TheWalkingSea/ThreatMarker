@@ -1,6 +1,6 @@
 var a = 2;
 
-while (a > 5) {
+while (a < 5) {
     a++;
 }
 
