@@ -23,6 +23,8 @@ let globalCtx = new ExecutionContext(
 )
 let ti = new TaintInterpreter(globalCtx)
 
+console.log('deobfuscating...')
+
 ti.eval(ast.program)
 
 console.log('converting to ast...')
