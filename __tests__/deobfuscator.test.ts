@@ -56,12 +56,21 @@ test('Sequence Expression', test_ast('sequence_exp'))
 test('Literals', test_ast('literal'))
 test('BinaryExpression', test_ast('binary_exp'))
 test('AssignmentExpression', test_ast('assignment_exp'))
-describe("IfStatement", () => {
-    test('IfStatement Tainted', test_ast('IfStatement/if_stmt_taint'));
-    test('IfStatement Untainted', test_ast('IfStatement/if_stmt_untainted'));
-    test('Simplify IfBlock in a Tainted IfStatement', test_ast('IfStatement/if_stmt_simplify_taint'));
-});
+test('EmptyExpression', test_ast('empty_exp'))
 test('BlockStatement', test_ast('block_stmt'))
+describe("IfStatement", () => {
+    test('Untainted Condition (true) - IfStatement Replacement', test_ast('IfStatement/untaint_true'));
+    test('Untainted Condition (false)', test_ast('IfStatement/untaint_false'));
+    test('Tainted Condition - Global Block Simplification', test_ast('IfStatement/taint_ext'));
+    test('Tainted Condition - Block Simplification', test_ast('IfStatement/taint_int'));
+    test('Tainted Condition => Taint else if Block', test_ast('IfStatement/taint_elif'));
+});
+describe("WhileLoop", () => {
+    test('Untainted Condition', test_ast('WhileLoop/untaint'));
+    test('Tainted Condition - External Write', test_ast('WhileLoop/taint_ext_write'));
+    test('Tainted Condition - External Read', test_ast('WhileLoop/taint_ext_read'));
+    test('Tainted Condition - Block Simplification', test_ast('WhileLoop/taint_int'));
+});
 describe("FunctionDeclaration", () => {
     test('Declaration', test_ast('FunctionDeclaration/FunctionDeclaration'));
     test('Inner Scope Var Simplification', test_ast('FunctionDeclaration/inner_scope'));
@@ -73,14 +82,6 @@ describe("CallExpression", () => {
     test('CallExpression', test_ast('CallExpression/CallExpression'));
     test('Tainted Return Value', test_ast('CallExpression/tainted'));
     test('Untainted Return Value', test_ast('CallExpression/untainted'));
-});
-describe("WhileLoop", () => {
-    test('WhileLoop', test_ast('WhileLoop/while_loop'));
-    test('Simplify Test Variable', test_ast('WhileLoop/simplify_test'));
-    test('Tainted Test Variable', test_ast('WhileLoop/tainted_test'));
-    test('Dynamic Variable', test_ast('WhileLoop/taint_ext_var'));
-    test('Static Variable', test_ast('WhileLoop/untaint_ext_var'));
-    test('FALSE loop', test_ast('WhileLoop/no_run'));
 });
 test('UnaryExpression', test_ast('unary_exp'));
 test('UpdateExpression', test_ast('update_expr'));

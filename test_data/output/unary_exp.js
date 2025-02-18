@@ -6,3 +6,6 @@ false;
 "boolean";
 
 undefined;
+
+var c = document;
+!c;

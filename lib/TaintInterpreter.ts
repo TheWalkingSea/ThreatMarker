@@ -395,7 +395,9 @@ export class TaintInterpreter {
                 return;
             }
         }
-
+        
+        // Critical Assumption: Code executed in a standard block does NOT create a new scope
+        // Note: let, const, and function declarations are defined in the block-scope which does not follow the assumption
         if (t.isBlockStatement(node)) {
             let return_block_flag = this.return_stmt_flag; // Temp store the return_stmt_flag
             this.return_stmt_flag = true;
@@ -721,35 +723,49 @@ export class TaintInterpreter {
             let test = this.eval(node.test, ctx) as TaintedLiteral;
 
             // Tracks any variables that have not changed
-            // true means untainted, false means tainted => ignore !!
-            let unchanged_state: Map<string, boolean> = new Map();
+            // tainted variables are ignored
+            let unchanged_state: Map<string, TaintedLiteral> = new Map();
             
             ctx.environment.get_deep_copy().forEach((value: TaintedLiteral, key: string) => {
-                if (!value.isTainted) unchanged_state.set(key, true); // Push untainted variables to unchanged_state
+                if (!value.isTainted) unchanged_state.set(key, 
+                    { // Create a deep copy of the TaintedLiteral
+                        value: value?.value,
+                        node: value?.node,
+                        isTainted: value.isTainted
+                    }
+                ); // Push untainted variables to unchanged_state
             })
 
             while (!test.isTainted && test.value) { // Quit if test is taint or test is False
 
                 // Evaluate Block
+                this.return_stmt_flag = true; // Enable flag to remove duplications
                 this.eval(node.body, ctx)
+                this.return_stmt_flag = false;
 
                 // Check for any differing variables
                 ctx.environment.get_deep_copy().forEach((value: TaintedLiteral, key: string) => {
-                    if (value.isTainted || unchanged_state.get(key) !== value.value) { // Tainted or value changed
-                        unchanged_state.set(key, false); // Tainted !
+                    if (value.isTainted || unchanged_state.get(key)?.value != value.value) { // Tainted or value changed between iterations
+                        unchanged_state.set(key, {
+                            isTainted: true
+                        }); // Tainted !
                     }
                 })
+
+                test = this.eval(node.test, ctx) as TaintedLiteral; // Re-evaluate test
             }
 
             // Add loop to AST
 
             // Get untainted records
             const record = new Map();
-            unchanged_state.forEach((value: boolean, key: string) => {
-                if (value) { // If untainted
-                    record.set(key, ctx.environment.resolve(key)); // Retrieve from environment; Recall that the value has not changed
-                }
-            })
+            if (!test.isTainted) {
+                unchanged_state.forEach((value: TaintedLiteral, key: string) => {
+                    if (!value.isTainted) { // If untainted
+                        record.set(key, value); // Retrieve from environment; Recall that the value has not changed
+                    }
+                })
+            }
 
             // Create environment
             // Ran in isolation -> parent = null
@@ -766,14 +782,14 @@ export class TaintInterpreter {
             const test_stmt = this.eval(node.test, exec_ctx) as TaintedLiteral;
 
             // Remove ExecutionContext
-            this.callstack.pop()
+            this.callstack.pop();
 
             const while_stmt = t.whileStatement(
                 get_repr(test_stmt), 
                 body
-            )
+            );
 
-            return this.append_ast(while_stmt)
+            return this.append_ast(while_stmt);
 
         }
 

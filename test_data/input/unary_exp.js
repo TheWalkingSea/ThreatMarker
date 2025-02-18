@@ -6,3 +6,6 @@ b;
 typeof b;
 
 void b;
+
+var c = document;
+!c;
