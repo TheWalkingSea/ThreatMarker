@@ -11,17 +11,17 @@
 'RegExpLiteral', ✔️✔️
 'IfStatement', ✔️
 'BlockStatement' ✔️✔️
-'CallExpression', ✔️
+'CallExpression', 
 'FunctionExpression', ✔️
 'VariableDeclaration', ✔️✔️
 'VariableDeclarator', ✔️✔️
-'FunctionDeclaration', ✔️
+'FunctionDeclaration', 
 'AssignmentExpression', ✔️✔️
 'ObjectExpression',
 'ThisExpression',
 'ReturnStatement', ✔️
 'ObjectProperty',
-'WhileStatement',
+'WhileStatement', ✔️
 'DoWhileStatement',
 'UpdateExpression', ✔️✔️
 'LogicalExpression',

@@ -718,79 +718,52 @@ export class TaintInterpreter {
 
         // Loops
 
-        if (t.isWhile(node)) {
+        if (t.isWhileStatement(node)) {
             // Execute loop
             let test = this.eval(node.test, ctx) as TaintedLiteral;
 
-            // Tracks any variables that have not changed
-            // tainted variables are ignored
-            let unchanged_state: Map<string, TaintedLiteral> = new Map();
-            
-            ctx.environment.get_deep_copy().forEach((value: TaintedLiteral, key: string) => {
-                if (!value.isTainted) unchanged_state.set(key, 
-                    { // Create a deep copy of the TaintedLiteral
-                        value: value?.value,
-                        node: value?.node,
-                        isTainted: value.isTainted
-                    }
-                ); // Push untainted variables to unchanged_state
-            })
-
+            // Untainted While Loop
             while (!test.isTainted && test.value) { // Quit if test is taint or test is False
 
                 // Evaluate Block
-                this.return_stmt_flag = true; // Enable flag to remove duplications
-                this.eval(node.body, ctx)
-                this.return_stmt_flag = false;
-
-                // Check for any differing variables
-                ctx.environment.get_deep_copy().forEach((value: TaintedLiteral, key: string) => {
-                    if (value.isTainted || unchanged_state.get(key)?.value != value.value) { // Tainted or value changed between iterations
-                        unchanged_state.set(key, {
-                            isTainted: true
-                        }); // Tainted !
-                    }
-                })
+                // Note: return_stmt_flag is set to false because we want to dupe statements
+                this.eval(node.body, ctx);
 
                 test = this.eval(node.test, ctx) as TaintedLiteral; // Re-evaluate test
             }
 
-            // Add loop to AST
+            // Tainted While Loop
+            if (test.isTainted) {
+                // We must update unchanged_variables through a first pass, then deobfuscate the code
+                const env = new Environment(new Map(), null, true, false, true);
+                const exec_ctx = new ExecutionContext(this, env);
 
-            // Get untainted records
-            const record = new Map();
-            if (!test.isTainted) {
-                unchanged_state.forEach((value: TaintedLiteral, key: string) => {
-                    if (!value.isTainted) { // If untainted
-                        record.set(key, value); // Retrieve from environment; Recall that the value has not changed
-                    }
-                })
+                this.callstack.push(exec_ctx);
+
+                // Run block in isolation
+                this.return_stmt_flag = true; // returns the block instead of result
+                this.eval(node.body, exec_ctx) as t.BlockStatement;
+
+                const body = this.eval(node.body, exec_ctx) as t.BlockStatement;
+                this.return_stmt_flag = false;
+
+                // Remove ExecutionContext
+                this.callstack.pop();
+
+                const test_stmt = this.eval(node.test, exec_ctx) as TaintedLiteral;
+
+                // // Remove ExecutionContext
+                this.callstack.pop();
+
+                const while_stmt = t.whileStatement(
+                    get_repr(test_stmt),
+                    body
+                );
+
+                return this.append_ast(while_stmt);
             }
 
-            // Create environment
-            // Ran in isolation -> parent = null
-            const env = new Environment(record, null, false, false, true);
-            const exec_ctx = new ExecutionContext(this, env);
-
-            this.callstack.push(exec_ctx);
-
-            // Run block in isolation
-            this.return_stmt_flag = true; // returns the block instead of result
-            const body = this.eval(node.body, exec_ctx) as t.BlockStatement;
-            this.return_stmt_flag = false;
-
-            const test_stmt = this.eval(node.test, exec_ctx) as TaintedLiteral;
-
-            // Remove ExecutionContext
-            this.callstack.pop();
-
-            const while_stmt = t.whileStatement(
-                get_repr(test_stmt), 
-                body
-            );
-
-            return this.append_ast(while_stmt);
-
+            return
         }
 
 
