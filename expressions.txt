@@ -32,7 +32,7 @@
 'SwitchStatement',
 'SwitchCase',
 'ArrayExpression',
-'ConditionalExpression',
+'ConditionalExpression', ✔️✔️
 'NewExpression',
 'TryStatement',
 'CatchClause',
