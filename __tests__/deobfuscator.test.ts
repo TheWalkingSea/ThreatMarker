@@ -67,6 +67,12 @@ describe("IfStatement", () => {
     test('Tainted Condition - Block Simplification', test_ast('IfStatement/taint_int'));
     test('Nested Taint Condition', test_ast('IfStatement/nested_taint'));
 });
+describe("ConditionalExpression", () => {
+    test('Tainted Test', test_ast('ConditionalExpression/tainted'));
+    test('Tainted Condition - External Write', test_ast('ConditionalExpression/tainted_ext_write'));
+    test('Untainted Condition (false)', test_ast('ConditionalExpression/untaint_false'));
+    test('Untainted Condition (true)', test_ast('ConditionalExpression/untaint_true'));
+});
 describe("WhileLoop", () => {
     test('Untainted Condition', test_ast('WhileLoop/untaint'));
     test('Tainted Condition - External Write', test_ast('WhileLoop/taint_ext_write'));
