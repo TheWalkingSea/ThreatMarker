@@ -65,6 +65,7 @@ describe("IfStatement", () => {
     test('Tainted Condition => Taint else if Block', test_ast('IfStatement/taint_elif'));
     test('Tainted Condition - Global Block Simplification', test_ast('IfStatement/taint_ext'));
     test('Tainted Condition - Block Simplification', test_ast('IfStatement/taint_int'));
+    test('Nested Taint Condition', test_ast('IfStatement/nested_taint'));
 });
 describe("WhileLoop", () => {
     test('Untainted Condition', test_ast('WhileLoop/untaint'));
