@@ -72,6 +72,7 @@ describe("ConditionalExpression", () => {
     test('Tainted Condition - External Write', test_ast('ConditionalExpression/tainted_ext_write'));
     test('Untainted Condition (false)', test_ast('ConditionalExpression/untaint_false'));
     test('Untainted Condition (true)', test_ast('ConditionalExpression/untaint_true'));
+    test('Nested Ternary', test_ast('ConditionalExpression/nested'));
 });
 describe("WhileLoop", () => {
     test('Untainted Condition', test_ast('WhileLoop/untaint'));
