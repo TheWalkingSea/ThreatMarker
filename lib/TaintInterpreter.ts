@@ -400,7 +400,68 @@ export class TaintInterpreter {
 
         // }
 
-        // if (t.isConditionalExpression(node)) {}
+        if (t.isConditionalExpression(node)) {
+            // AKA Ternary Expression; very similar to IfStatement but a value is returned!
+            let test = this.eval(node.test, ctx) as TaintedLiteral;
+
+            if (test.isTainted) { // All subsequent nodes are tainted
+
+                const execute_ternary = (expr: any): TaintedLiteral => {
+
+                    let isolatedCtx = new ExecutionContext(
+                        ctx.thisValue,
+                        new Environment(new Map(), ctx.environment, true, false) // taint_parent_writes = true
+                    )
+                    
+                    // Put if statement in it's own context
+                    this.callstack.push(isolatedCtx);
+
+                    // Execute the block
+                    let ret = this.get_stmt_wrapper(
+                        this.eval, expr, isolatedCtx
+                        ) as TaintedLiteral;
+
+                    if (ret && !('isTainted' in ret)) {
+                        throw 'TernaryExpression Evaluated to a value that is not type TaintLiteral'
+                    }
+
+                    this.callstack.pop() // Remove isolatedEnv
+
+                    // Any variables defined in the inner block are tainted in outer scope
+                    isolatedCtx.environment.record.forEach((value: TaintedLiteral, key: string, _) => {
+                        // Due to the assumption all definitions use var, all variables defined in the inner block will leak into the outer block
+                        
+                        ctx.environment.declare(key);
+                        ctx.environment.assign(key, {
+                            node: t.identifier(key),
+                            isTainted: true
+                        });
+                    })
+
+                    return ret;
+                }
+
+                let consequent = execute_ternary(node.consequent) as TaintedLiteral;
+                let alternate = execute_ternary(node.alternate) as TaintedLiteral;
+
+                return {
+                    node: t.conditionalExpression(
+                        get_repr(test), 
+                        get_repr(consequent), 
+                        get_repr(alternate)
+                    ),
+                    isTainted: true
+                }
+            } else { // Execute normally
+                let stmt = test.value ? node.consequent : node.alternate;
+                // Should add executed statement to AST
+                let exec_stmt = this.get_stmt_wrapper(
+                    this.eval, stmt, ctx
+                ) as TaintedLiteral;
+
+                return exec_stmt
+            }
+        }
 
         if (t.isIfStatement(node)) {
             // If the condition is tainted, run both blocks isolated & taint any variables written from outer scope
@@ -866,8 +927,6 @@ export class TaintInterpreter {
 
             return
         }
-
-
 
         throw new NotImplementedException(node.type)
     }
