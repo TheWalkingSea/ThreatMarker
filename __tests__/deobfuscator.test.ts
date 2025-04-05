@@ -55,15 +55,16 @@ test('Identifier', test_ast('identifier'))
 test('Sequence Expression', test_ast('sequence_exp'))
 test('Literals', test_ast('literal'))
 test('BinaryExpression', test_ast('binary_exp'))
+test('LogicalExpression', test_ast('logical_exp'));
 test('AssignmentExpression', test_ast('assignment_exp'))
 test('EmptyExpression', test_ast('empty_exp'))
 test('BlockStatement', test_ast('block_stmt'))
 describe("IfStatement", () => {
     test('Untainted Condition (true) - IfStatement Replacement', test_ast('IfStatement/untaint_true'));
     test('Untainted Condition (false)', test_ast('IfStatement/untaint_false'));
+    test('Tainted Condition => Taint else if Block', test_ast('IfStatement/taint_elif'));
     test('Tainted Condition - Global Block Simplification', test_ast('IfStatement/taint_ext'));
     test('Tainted Condition - Block Simplification', test_ast('IfStatement/taint_int'));
-    test('Tainted Condition => Taint else if Block', test_ast('IfStatement/taint_elif'));
 });
 describe("WhileLoop", () => {
     test('Untainted Condition', test_ast('WhileLoop/untaint'));
@@ -82,6 +83,9 @@ describe("CallExpression", () => {
     test('CallExpression', test_ast('CallExpression/CallExpression'));
     test('Tainted Return Value', test_ast('CallExpression/tainted'));
     test('Untainted Return Value', test_ast('CallExpression/untainted'));
+    test('External Write', test_ast('CallExpression/ext_write'));
+    test('External Read', test_ast('CallExpression/ext_read'));
+    test('Parameters', test_ast('CallExpression/parameters'));
 });
 test('UnaryExpression', test_ast('unary_exp'));
-test('UpdateExpression', test_ast('update_expr'));
+test('UpdateExpression', test_ast('update_exp'));
