@@ -567,7 +567,7 @@ export class TaintInterpreter {
                 if (result) block.push(result as t.Statement);
 
 
-                if (this.callstack[this.callstack.length - 1] !== ctx) { // Used for functions
+                if (this.callstack[this.callstack.length - 1] !== ctx) { // Used for functions, loops
                     break; // No longer in context - Break out of block
                 }
             }
@@ -926,6 +926,40 @@ export class TaintInterpreter {
             }
 
             return
+        }
+
+        if (t.isLabeledStatement(node)) {
+            let label = node.label.name
+
+            let initial_callstack_length = this.callstack.length; // BTW: This is a copy, not reference
+            // Assign the label the length of the original callstack. This number will be used to track if the label is in context or not
+            ctx.environment.declare(label);
+            ctx.environment.assign(label + 'LabeledStatement', {
+                value: initial_callstack_length,
+                isTainted: false
+            })
+
+            // Now we add a clone of the callstack to the environment. This is purely to make the callstack size larger, so that when broken, it matches the original callstack length
+            let newctx = this.callstack[initial_callstack_length - 1]; // Technically this is a reference to the original context
+            this.callstack.push(newctx);
+
+            // Now we execute the body as normal. If broken, the evaluator should automatically exit all the cascaded blocks
+            let body = this.get_stmt_wrapper(
+                this.eval,
+                node.body,
+                ctx
+            ) as t.Statement
+
+            // If not broken, remove the duplicated ctx
+            this.callstack.splice(initial_callstack_length);
+
+            let labeled_stmt = t.labeledStatement(
+                t.identifier(label),
+                body
+            )
+
+            return this.append_ast(labeled_stmt)
+
         }
 
         throw new NotImplementedException(node.type)

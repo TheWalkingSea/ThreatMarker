@@ -26,6 +26,7 @@
 'UpdateExpression', ✔️✔️
 'LogicalExpression', ✔️✔️
 'ForStatement',
+'LabeledStatement', ✔️
 'ContinueStatement',
 'BreakStatement',
 'MemberExpression',
