@@ -962,6 +962,17 @@ export class TaintInterpreter {
 
         }
 
+        if (t.isBreakStatement(node)) {
+            let label = node.label?.name;
+
+            if (label) { // Break out of label
+                let callstack_len = ctx.environment.resolve(label + 'LabeledStatement').value
+                this.callstack.splice(callstack_len); 
+            } else { // Break out of current context
+                this.callstack.pop();
+            }
+        }
+
         throw new NotImplementedException(node.type)
     }
 }
