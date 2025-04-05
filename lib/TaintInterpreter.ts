@@ -10,6 +10,7 @@ export class TaintInterpreter {
     ast: Array<t.Node>;
     return_stmt_flag: Boolean;
     returnValue: TaintedLiteral;
+    flags;
 
     constructor(execCtx: ExecutionContext) {
         this.callstack = [execCtx];
@@ -19,12 +20,27 @@ export class TaintInterpreter {
             value: null, 
             isTainted: false
         }; // Used for Function Runners; saves the state of the return value
+
+        this.flags = {
+            'IfStatement': {
+                'taint_else_block': false,
+            },
+        }
     }
 
     append_ast(stmt: t.Node): void | t.Node {
         if (this.return_stmt_flag) return stmt;
 
         this.ast.push(stmt);
+    }
+
+    get_stmt_wrapper<T extends (...args: any[]) => any>(fn: T, ...args: Parameters<T>): ReturnType<T> {
+        const initial_return_stmt_flag = this.return_stmt_flag;
+        this.return_stmt_flag = true;
+        const result = fn.bind(this)(...args);
+        this.return_stmt_flag = initial_return_stmt_flag;
+
+        return result;
     }
 
     /** 
@@ -216,8 +232,48 @@ export class TaintInterpreter {
                 default:
                     throw new NotImplementedException(node.operator);
             }
+    
+            return {
+                value: value,
+                isTainted: false
+            }
+        }
 
-            
+        if (t.isLogicalExpression(node)) {
+            // If left or right side of expression is tainted, make the entire expression tainted
+            let left_id = this.eval(node.left, ctx) as TaintedLiteral;
+            let right_id = this.eval(node.right, ctx) as TaintedLiteral;
+
+            if (left_id.isTainted || right_id.isTainted) {
+                if (!left_id?.node && !right_id?.node) throw new Error('left or right node in BinaryExpression is undefined despite being tainted');
+                return {
+                    node: t.logicalExpression(
+                        node.operator, 
+                        get_repr(left_id), 
+                        get_repr(right_id)
+                    ),
+                    isTainted: true
+                } // Taintness is inherited
+            }
+
+            let left = left_id.value;
+            let right = right_id.value;
+
+            let value;
+            switch (node.operator) {
+                case '&&':
+                    value = left && right;
+                    break
+                case '||':
+                    value = left || right;
+                    break
+                case '??':
+                    value = left ?? right;
+                    break
+                default:
+                    throw new NotImplementedException((node as t.LogicalExpression).operator);
+            }
+
             return {
                 value: value,
                 isTainted: false
@@ -337,7 +393,15 @@ export class TaintInterpreter {
                 isTainted: false
             }
         }
-  
+        
+        // if (t.isSwitchStatement(node)) {
+        //     let expression = this.eval(node.discriminant, ctx);
+
+
+        // }
+
+        // if (t.isConditionalExpression(node)) {}
+
         if (t.isIfStatement(node)) {
             // If the condition is tainted, run both blocks isolated & taint any variables written from outer scope
             // If the condition is not tainted, remove the redundant block
@@ -358,12 +422,13 @@ export class TaintInterpreter {
                     this.callstack.push(isolatedCtx);
 
                     // Execute the block
-                    this.return_stmt_flag = true;
-                    let simplified_block = this.eval(block, isolatedCtx) as t.BlockStatement | t.ExpressionStatement;
-                    this.return_stmt_flag = false;
+                    let simplified_block = this.get_stmt_wrapper(
+                        this.eval, block, isolatedCtx
+                        ) as t.BlockStatement | t.ExpressionStatement;
 
-                    // Algorithm: Any variables defined in the inner block are tainted in outer scope
                     this.callstack.pop() // Remove isolatedEnv
+
+                    // Any variables defined in the inner block are tainted in outer scope
                     isolatedCtx.environment.record.forEach((value: TaintedLiteral, key: string, _) => {
                         // Due to the assumption all definitions use var, all variables defined in the inner block will leak into the outer block
                         
@@ -378,7 +443,33 @@ export class TaintInterpreter {
                 }
 
                 let consequent = simplify_conditional_block(node.consequent as t.BlockStatement) as t.BlockStatement;
-                let alternate = simplify_conditional_block(node.alternate as t.BlockStatement); // Could be null
+                let alternate;
+                if (t.isIfStatement(node.alternate)) {
+                    // Since the else block is considered tainted, we need to execute the block as tainted.
+
+                    let else_stmt = node.alternate as t.IfStatement;
+
+                    alternate = this.get_stmt_wrapper(
+                        this.eval, t.ifStatement(
+                            get_repr(test), // Tainted! so this block will execute as tainted!
+                            else_stmt.consequent,
+                            else_stmt.alternate,
+                        ), ctx
+                    ) as t.IfStatement;
+
+                    // Since we overwrote the test to execute as tainted, we must revert the changes
+                    const else_stmt_test = this.eval(else_stmt.test, ctx) as TaintedLiteral
+                    alternate.test = else_stmt_test.node as t.Expression;
+
+                    // And if the else_stmt's test is untainted, we must handle that as well (just return the executed block)
+                    // Note: The block will still be treated as tainted
+                    if (!else_stmt_test.isTainted) {
+                        alternate = else_stmt_test.value ? else_stmt.consequent : else_stmt.alternate;
+                    } 
+
+                } else if (t.isBlockStatement(node.alternate)) {
+                    alternate = simplify_conditional_block(node.alternate as t.BlockStatement); // Could be null
+                }
 
                 return this.append_ast(
                     t.ifStatement(
@@ -390,16 +481,22 @@ export class TaintInterpreter {
             } else { // Execute normally
                 let block = test.value ? node.consequent : node.alternate;
                 if (block) {
-                    this.eval(block, ctx) as t.BlockStatement | t.ExpressionStatement;
+                    // Should add executed statement to AST
+                    let exec_stmt = this.get_stmt_wrapper(
+                        this.eval, block, ctx
+                    ) as t.BlockStatement | t.ExpressionStatement;
+
+                    return this.append_ast(exec_stmt);
+                } else {
+                    return; // IfStatement is redundant and is removed completely from the code
                 }
-                return;
             }
         }
         
         // Critical Assumption: Code executed in a standard block does NOT create a new scope
         // Note: let, const, and function declarations are defined in the block-scope which does not follow the assumption
         if (t.isBlockStatement(node)) {
-            let return_block_flag = this.return_stmt_flag; // Temp store the return_stmt_flag
+            let initial_return_stmt_flag = this.return_stmt_flag; // Temp store the return_stmt_flag
             this.return_stmt_flag = true;
             let block: Array<t.Statement> = [];
             for (let i=0;i<node.body.length;i++) {
@@ -413,7 +510,7 @@ export class TaintInterpreter {
                     break; // No longer in context - Break out of block
                 }
             }
-            this.return_stmt_flag = return_block_flag; // Restore state saved from earlier
+            this.return_stmt_flag = initial_return_stmt_flag; // Restore state saved from earlier
             return this.append_ast(t.blockStatement(block));
         }
 
@@ -501,8 +598,6 @@ export class TaintInterpreter {
                         throw new NotImplementedException(node.operator)
                 }
                 
-                console.log(name)
-                console.log(value)
                 ctx.environment.assign(name, {
                     value: value,
                     isTainted: false
@@ -546,33 +641,37 @@ export class TaintInterpreter {
             const parent_env = ctx.environment; // Runner will be set in a temporary environment
             
             // This function will encapsulate the functionality of the actual function, note that this is not the code that is being simplified, but simply used to be executed
-            const runner = function() {
+            const runner = function(args: Array<TaintedLiteral>, parent_env: Environment) {
 
                 // Define parameters
                 const activation_record: Map<string, TaintedLiteral | IArguments> = new Map();
                 for (let i=0;i<params.length;i++) {
-                    activation_record.set(params[i], arguments[i]) // arguments should be of type TaintLiteral when executed
+                    activation_record.set(params[i], args[i]) // arguments should be of type TaintLiteral when executed
                 }
+
+                function arguments_wrapper(_: any) {return arguments;}
                 activation_record.set('arguments', {
-                    value: arguments,
+                    value: arguments_wrapper(args),
+                    node: t.identifier('arguments'),
                     isTainted: true // Assume arguments are tainted
                 });
 
                 // Add new ExecutionContext
-                const env = new Environment(activation_record, parent_env, false, true);
+                const env = new Environment(activation_record, parent_env, false, false);
+
                 // @ts-ignore - Ignore `this` error
                 const exec_ctx = new ExecutionContext(this, env);
                 self.callstack.push(exec_ctx);
 
-                // Run block in isolation
                 self.returnValue = {
                     value: null,
                     isTainted: false
                 };
-
+                
+                const initial_return_stmt_flag = self.return_stmt_flag;
                 self.return_stmt_flag = true; // Enable this so that code does not dupe
                 self.eval(node.body, exec_ctx); // Executes block
-                self.return_stmt_flag = false;
+                self.return_stmt_flag = initial_return_stmt_flag;
 
                 // Remove ExecutionContext
                 self.callstack.pop()
@@ -609,9 +708,10 @@ export class TaintInterpreter {
             self.callstack.push(exec_ctx);
 
             // Run block in isolation
+            const initial_return_stmt_flag = self.return_stmt_flag;
             self.return_stmt_flag = true; // returns the block instead of result
             const body = self.eval(node.body, exec_ctx) as t.BlockStatement;
-            self.return_stmt_flag = false;
+            self.return_stmt_flag = initial_return_stmt_flag;
 
             // Remove ExecutionContext
             self.callstack.pop()
@@ -630,9 +730,9 @@ export class TaintInterpreter {
             
             const func: Function = ctx.environment.resolve(node.callee.name).value as Function; // Gets the runner function
 
-            const args = node.arguments.forEach((n) => this.eval(n, ctx));
+            const args = node.arguments.map((n) => this.eval(n, ctx));
 
-            const result: TaintedLiteral = func(args);
+            const result: TaintedLiteral = func(args, ctx.environment);
 
             // Add to AST
             if (!result.isTainted) { // Return value is not tainted
@@ -735,17 +835,18 @@ export class TaintInterpreter {
             // Tainted While Loop
             if (test.isTainted) {
                 // We must update unchanged_variables through a first pass, then deobfuscate the code
-                const env = new Environment(new Map(), null, true, false, true);
+                const env = new Environment(new Map(), ctx.environment, true, false, true);
                 const exec_ctx = new ExecutionContext(this, env);
 
                 this.callstack.push(exec_ctx);
 
                 // Run block in isolation
+                const initial_return_stmt_flag = this.return_stmt_flag;
                 this.return_stmt_flag = true; // returns the block instead of result
                 this.eval(node.body, exec_ctx) as t.BlockStatement;
 
                 const body = this.eval(node.body, exec_ctx) as t.BlockStatement;
-                this.return_stmt_flag = false;
+                this.return_stmt_flag = initial_return_stmt_flag;
 
                 // Remove ExecutionContext
                 this.callstack.pop();
