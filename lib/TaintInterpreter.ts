@@ -933,7 +933,7 @@ export class TaintInterpreter {
 
             let initial_callstack_length = this.callstack.length; // BTW: This is a copy, not reference
             // Assign the label the length of the original callstack. This number will be used to track if the label is in context or not
-            ctx.environment.declare(label);
+            // Declare is omitted - We assume that ReferenceException is never raised
             ctx.environment.assign(label + 'LabeledStatement', {
                 value: initial_callstack_length,
                 isTainted: false
