@@ -9,22 +9,22 @@
 'NullLiteral' ✔️✔️
 'BooleanLiteral' ✔️✔️
 'RegExpLiteral', ✔️✔️
-'IfStatement', ✔️
+'IfStatement', ✔️✔️
 'BlockStatement' ✔️✔️
-'CallExpression', 
-'FunctionExpression', ✔️
+'CallExpression', ✔️✔️
+'FunctionExpression', ✔️✔️
 'VariableDeclaration', ✔️✔️
 'VariableDeclarator', ✔️✔️
-'FunctionDeclaration', 
+'FunctionDeclaration', ✔️✔️
 'AssignmentExpression', ✔️✔️
 'ObjectExpression',
 'ThisExpression',
-'ReturnStatement', ✔️
+'ReturnStatement', ✔️✔️
 'ObjectProperty',
-'WhileStatement', ✔️
+'WhileStatement', ✔️✔️
 'DoWhileStatement',
 'UpdateExpression', ✔️✔️
-'LogicalExpression',
+'LogicalExpression', ✔️✔️
 'ForStatement',
 'ContinueStatement',
 'BreakStatement',
