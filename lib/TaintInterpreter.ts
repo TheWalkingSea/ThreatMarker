@@ -28,6 +28,7 @@ export class TaintInterpreter {
             'IfStatement': {
                 'taint_else_block': false,
             },
+            'error_state': t.blockStatement([]) // Temporarily save program state here before throwing an error - Used for Try-Except blocks
         }
     }
 
@@ -578,8 +579,22 @@ export class TaintInterpreter {
             let block: Array<t.Statement> = [];
             for (let i=0;i<node.body.length;i++) {
                 let stmt = node.body[i];
+
+                let result;
                 
-                let result = this.eval(stmt, ctx);
+                try {
+                    result = this.eval(stmt, ctx);
+                } catch (err) {
+                    block.push(stmt);
+
+                    this.return_stmt_flag = initial_return_stmt_flag;
+                    
+                    // Temporarily save error state here
+                    this.flags.error_state = t.blockStatement(block); 
+
+                    throw err;
+                }
+
                 if (result) block.push(result as t.Statement);
 
 
@@ -867,13 +882,13 @@ export class TaintInterpreter {
             }
 
             // Executor
+            const initial_return_stmt_flag = this.return_stmt_flag;
             try {
-                try_block = this.get_stmt_wrapper(
-                    this.eval, 
-                    node.block, 
-                    ctx
-                ) as t.BlockStatement;
+                this.return_stmt_flag = true;
+                try_block = this.eval(node.block, ctx);
+                this.return_stmt_flag = initial_return_stmt_flag;
             } catch (wrapped_error) {
+                this.return_stmt_flag = initial_return_stmt_flag;
 
                 if (wrapped_error instanceof DeobfuscatorException) {
                     throw wrapped_error; // Error with deobfuscator
@@ -933,6 +948,10 @@ export class TaintInterpreter {
                 }
             }
 
+            if (!try_block) { // Error occurred. Error state must be retrieved
+                try_block = this.flags.error_state;
+            }
+
             const catch_clause = t.catchClause(
                 param_name ? t.identifier(param_name) : undefined,
                 catch_block
@@ -945,7 +964,6 @@ export class TaintInterpreter {
             )
 
             return this.append_ast(try_stmt)
-
         }
 
         // if (t.isThrowStatement(node)) {
