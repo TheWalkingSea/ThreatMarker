@@ -7,6 +7,7 @@ import * as t from '@babel/types';
 import { Value, get_repr } from './../utils/to_value';
 import { exec } from "node:child_process";
 import { wrap } from "node:module";
+
 export class TaintInterpreter {
     callstack: Array<ExecutionContext>;
     ast: Array<t.Node>;
@@ -30,6 +31,11 @@ export class TaintInterpreter {
         }
     }
 
+    /** 
+     * Appends block to AST.
+     * @param {t.Node} stmt - The node being appended/returned
+     * @returns {void | t.Node} - void if appended to AST; returns the node instead if return_stmt_flag is set
+     */
     append_ast(stmt: t.Node): void | t.Node {
         if (this.return_stmt_flag) return stmt;
 
@@ -43,6 +49,47 @@ export class TaintInterpreter {
         this.return_stmt_flag = initial_return_stmt_flag;
 
         return result;
+    }
+
+    /** 
+     * Evaluates a node that is NOT guarenteed to execute (ex: ConditionalStatement). 
+     * External reads will flow and external writes will be automatically tainted.
+     * Code block is executed in isolation. Taint will be propogated afterwards
+     * @param {t.BlockStatement} block - The node being simplified
+     * @param {ExecutionContext} ctx - The context in which the node is being executed in
+     * @returns {t.BlockStatement | t.ExpressionStatement} - Returns the simplified ambiguous BlockStatement
+     */
+    simplify_ambiguous_flow(block: t.BlockStatement, ctx: ExecutionContext): t.BlockStatement | t.ExpressionStatement | null {
+        
+        if (!block) return null;
+
+        let isolatedCtx = new ExecutionContext(
+            ctx.thisValue,
+            new Environment(new Map(), ctx.environment, true, false) // taint_parent_writes = true
+        )
+        
+        // Put if statement in it's own context
+        this.callstack.push(isolatedCtx);
+
+        // Execute the block
+        let simplified_block = this.get_stmt_wrapper(
+            this.eval, block, isolatedCtx
+            ) as t.BlockStatement | t.ExpressionStatement;
+
+        this.callstack.pop() // Remove isolatedEnv
+
+        // Any variables defined in the inner block are tainted in outer scope
+        isolatedCtx.environment.record.forEach((value: TaintedLiteral, key: string, _) => {
+            // Due to the assumption all definitions use var, all variables defined in the inner block will leak into the outer block
+            
+            ctx.environment.declare(key);
+            ctx.environment.assign(key, {
+                node: t.identifier(key),
+                isTainted: true
+            });
+        })
+
+        return simplified_block;
     }
 
     /** 
@@ -472,40 +519,7 @@ export class TaintInterpreter {
 
             if (test.isTainted) { // All subsequent nodes are tainted
 
-                const simplify_conditional_block = (block: t.BlockStatement): t.BlockStatement | t.ExpressionStatement | null => {
-                    
-                    if (!block) return null;
-
-                    let isolatedCtx = new ExecutionContext(
-                        ctx.thisValue,
-                        new Environment(new Map(), ctx.environment, true, false) // taint_parent_writes = true
-                    )
-                    
-                    // Put if statement in it's own context
-                    this.callstack.push(isolatedCtx);
-
-                    // Execute the block
-                    let simplified_block = this.get_stmt_wrapper(
-                        this.eval, block, isolatedCtx
-                        ) as t.BlockStatement | t.ExpressionStatement;
-
-                    this.callstack.pop() // Remove isolatedEnv
-
-                    // Any variables defined in the inner block are tainted in outer scope
-                    isolatedCtx.environment.record.forEach((value: TaintedLiteral, key: string, _) => {
-                        // Due to the assumption all definitions use var, all variables defined in the inner block will leak into the outer block
-                        
-                        ctx.environment.declare(key);
-                        ctx.environment.assign(key, {
-                            node: t.identifier(key),
-                            isTainted: true
-                        });
-                    })
-
-                    return simplified_block;
-                }
-
-                let consequent = simplify_conditional_block(node.consequent as t.BlockStatement) as t.BlockStatement;
+                let consequent = this.simplify_ambiguous_flow(node.consequent as t.BlockStatement, ctx) as t.BlockStatement;
                 let alternate;
                 if (t.isIfStatement(node.alternate)) {
                     // Since the else block is considered tainted, we need to execute the block as tainted.
@@ -531,7 +545,7 @@ export class TaintInterpreter {
                     } 
 
                 } else if (t.isBlockStatement(node.alternate)) {
-                    alternate = simplify_conditional_block(node.alternate as t.BlockStatement); // Could be null
+                    alternate = this.simplify_ambiguous_flow(node.alternate as t.BlockStatement, ctx); // Could be null
                 }
 
                 return this.append_ast(
@@ -834,6 +848,24 @@ export class TaintInterpreter {
         if (t.isTryStatement(node)) {
             let try_block, catch_block, finalizer_block;
 
+
+            // This code is used for the catch block phase. However, we define it here for simplicity purposes
+            let param_name, original_error_value;
+            // Get error parameter name; may be undefined
+            const handler = node.handler as t.CatchClause;
+            if (handler.param) { // Assume param is an identifier
+
+                // Temporarily save the initial value of the error
+                param_name = (handler.param as t.Identifier).name;
+                try {
+                    // Try resolving for name
+                    original_error_value = ctx.environment.resolve(param_name);
+                } catch (error) {
+                    if (!(error instanceof ReferenceException)) throw error;
+                    ctx.environment.declare(param_name); // Declare error variable if not defined
+                }
+            }
+
             // Executor
             try {
                 try_block = this.get_stmt_wrapper(
@@ -849,30 +881,11 @@ export class TaintInterpreter {
 
                 const error = (wrapped_error as Error);
 
-                // Since it is a BlockStatement, it can effect outer variables
-                // Therefore, error must be added and removed manually
-                const handler = node.handler as t.CatchClause;
-
-                let param_name, original_error_value;
-                // Set error parameter
-                if (handler.param) { // Assume param is an identifier
-
-                    // Temporarily save the initial value of the error
-                    param_name = (handler.param as t.Identifier).name;
-                    try {
-                        // Try resolving for name
-                        original_error_value = ctx.environment.resolve(param_name);
-                    } catch (error) {
-                        if (!(error instanceof ReferenceException)) throw error;
-                        ctx.environment.declare(param_name); // Declare error variable if not defined
-                    }
-                    
-                    // Set error as tainted
-                    ctx.environment.assign(param_name, {
-                        value: error,
-                        isTainted: false
-                    });
-                }
+                // Set error as untainted
+                if (param_name) ctx.environment.assign(param_name, {
+                    value: error,
+                    isTainted: false
+                });
 
                 // Evaluate block
                 catch_block = this.get_stmt_wrapper(
@@ -887,11 +900,30 @@ export class TaintInterpreter {
                 );
             } finally {
 
-                // If the catch block was not executed, we taint the block
+                // If the catch block was not executed, we assume the block is tainted
                 // Taint must be propogated before executing finalizer block
+                if (!catch_block) {
+                    // Environment setup
+                        
+                    // Set error as tainted
+                    if (param_name) {
+                        ctx.environment.assign(param_name, {
+                            node: t.identifier(param_name),
+                            isTainted: true
+                        });
+                    }
 
+                    // Simplify block - Function executes in isolation so only taint is propogated
+                    catch_block = this.simplify_ambiguous_flow(handler.body as t.BlockStatement, ctx) as t.BlockStatement;
 
+                    // Reset environment
+                    if (original_error_value) ctx.environment.assign(
+                        (param_name as string), // If original_error_value is defined, so is param_name
+                        original_error_value
+                    );
+                }
 
+                // Execute finalizer block
                 if (node.finalizer) {
                     finalizer_block = this.get_stmt_wrapper(
                         this.eval, 
@@ -901,11 +933,15 @@ export class TaintInterpreter {
                 }
             }
 
+            const catch_clause = t.catchClause(
+                param_name ? t.identifier(param_name) : undefined,
+                catch_block
+            )
 
-            try_stmt = t.tryStatement(
-                try_block,
-                catch_block,
-
+            const try_stmt = t.tryStatement(
+                (try_block as t.BlockStatement),
+                catch_clause,
+                finalizer_block
             )
 
             return this.append_ast(try_stmt)
