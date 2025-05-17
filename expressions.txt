@@ -35,7 +35,7 @@
 'ArrayExpression',
 'ConditionalExpression', ✔️✔️
 'NewExpression',
-'TryStatement',
-'CatchClause',
+'TryStatement', ✔️✔️
+'CatchClause', ✔️✔️
 'ThrowStatement',
 'ForInStatement',
