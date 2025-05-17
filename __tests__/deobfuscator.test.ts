@@ -97,3 +97,9 @@ describe("CallExpression", () => {
 });
 test('UnaryExpression', test_ast('unary_exp'));
 test('UpdateExpression', test_ast('update_exp'));
+describe("TryStatement", () => {
+    test('Untainted', test_ast('TryStatement/untainted'));
+    test('Untainted - Remove redundant code', test_ast('TryStatement/untainted_2'));
+    test('Tainted', test_ast('TryStatement/tainted'));
+    test('Finally', test_ast('TryStatement/finally'));
+});
