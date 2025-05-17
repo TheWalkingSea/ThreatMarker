@@ -1,4 +1,6 @@
-export class NotImplementedException extends Error {
+import { DeobfuscatorException } from "./DeobfuscatorException";
+
+export class NotImplementedException extends DeobfuscatorException {
     constructor(name: string) {
         super(`${name} has not been implemented`);
     }
