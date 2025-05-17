@@ -1,10 +1,12 @@
 import { Environment } from "./Environment";
 import { ExecutionContext } from "./ExecutionContext";
 import { NotImplementedException } from "./NotImplementedException";
+import { DeobfuscatorException } from "./DeobfuscatorException";
 import { ReferenceException } from "./ReferenceException";
 import * as t from '@babel/types';
 import { Value, get_repr } from './../utils/to_value';
 import { exec } from "node:child_process";
+import { wrap } from "node:module";
 export class TaintInterpreter {
     callstack: Array<ExecutionContext>;
     ast: Array<t.Node>;
@@ -142,7 +144,7 @@ export class TaintInterpreter {
                         isTainted: true
                     } // Tainted ! - Defined in browser, not in NodeJS
                 } else {
-                    throw e
+                    throw new DeobfuscatorException((e as Error).message);
                 }
             }
         }
@@ -153,7 +155,7 @@ export class TaintInterpreter {
             let right_id = this.eval(node.right, ctx) as TaintedLiteral;
 
             if (left_id.isTainted || right_id.isTainted) {
-                if (!left_id?.node && !right_id?.node) throw new Error('left or right node in BinaryExpression is undefined despite being tainted');
+                if (!left_id?.node && !right_id?.node) throw new DeobfuscatorException('left or right node in BinaryExpression is undefined despite being tainted');
                 return {
                     node: t.binaryExpression(
                         node.operator, 
@@ -245,7 +247,7 @@ export class TaintInterpreter {
             let right_id = this.eval(node.right, ctx) as TaintedLiteral;
 
             if (left_id.isTainted || right_id.isTainted) {
-                if (!left_id?.node && !right_id?.node) throw new Error('left or right node in BinaryExpression is undefined despite being tainted');
+                if (!left_id?.node && !right_id?.node) throw new DeobfuscatorException('left or right node in BinaryExpression is undefined despite being tainted');
                 return {
                     node: t.logicalExpression(
                         node.operator, 
@@ -413,7 +415,7 @@ export class TaintInterpreter {
                         new Environment(new Map(), ctx.environment, true, false) // taint_parent_writes = true
                     )
                     
-                    // Put if statement in it's own context
+                    // Put ternary statement in it's own context
                     this.callstack.push(isolatedCtx);
 
                     // Execute the block
@@ -422,7 +424,7 @@ export class TaintInterpreter {
                         ) as TaintedLiteral;
 
                     if (ret && !('isTainted' in ret)) {
-                        throw 'TernaryExpression Evaluated to a value that is not type TaintLiteral'
+                        throw new DeobfuscatorException('TernaryExpression Evaluated to a value that is not type TaintLiteral');
                     }
 
                     this.callstack.pop() // Remove isolatedEnv
@@ -476,7 +478,7 @@ export class TaintInterpreter {
 
                     let isolatedCtx = new ExecutionContext(
                         ctx.thisValue,
-                        new Environment(new Map(), ctx.environment, true) // taint_parent_writes = true
+                        new Environment(new Map(), ctx.environment, true, false) // taint_parent_writes = true
                     )
                     
                     // Put if statement in it's own context
@@ -824,48 +826,91 @@ export class TaintInterpreter {
 
 
         // Error Support
+
+        // Assumptions
+        // Variables use `var` (function scope), whereas `let` would create a new environment in the try block
+        // 
         
-        // TODO:
-        // Catch destructuring patterns
-        // if (t.isTryStatement(node)) {
-        //     try { // Will also catch any errors with the deobfuscator, so proceed with caution
-        //         this.eval(node.block);
-        //     } catch (error) {
-        //         // Since it is a BlockStatement, it can effect outer variables
-        //         // Therefore, error must be added and removed manually
-        //         const handler = node.handler as t.CatchClause;
+        if (t.isTryStatement(node)) {
+            let try_block, catch_block, finalizer_block;
 
-        //         let original_error_param;
-        //         // Set error parameter
-        //         if (handler.param) { // Assume param is an identifier
-        //             let param_name = (handler.param as t.Identifier).name;
-        //             try {
-        //                 // Try resolving for name
-        //                 original_error_param = ctx.environment.resolve(param_name);
-        //             } catch (error) {
-        //                 if (!(error instanceof ReferenceException)) throw error;
-        //                 ctx.environment.declare(param_name); // Declare error variable if not defined
-        //             }
+            // Executor
+            try {
+                try_block = this.get_stmt_wrapper(
+                    this.eval, 
+                    node.block, 
+                    ctx
+                ) as t.BlockStatement;
+            } catch (wrapped_error) {
+
+                if (wrapped_error instanceof DeobfuscatorException) {
+                    throw wrapped_error; // Error with deobfuscator
+                }
+
+                const error = (wrapped_error as Error);
+
+                // Since it is a BlockStatement, it can effect outer variables
+                // Therefore, error must be added and removed manually
+                const handler = node.handler as t.CatchClause;
+
+                let param_name, original_error_value;
+                // Set error parameter
+                if (handler.param) { // Assume param is an identifier
+
+                    // Temporarily save the initial value of the error
+                    param_name = (handler.param as t.Identifier).name;
+                    try {
+                        // Try resolving for name
+                        original_error_value = ctx.environment.resolve(param_name);
+                    } catch (error) {
+                        if (!(error instanceof ReferenceException)) throw error;
+                        ctx.environment.declare(param_name); // Declare error variable if not defined
+                    }
                     
-        //             // Set error as tainted
-        //             ctx.environment.assign(param_name, {
-        //                 node: t.identifier(param_name),
-        //                 isTainted: true
-        //             })
-        //         }
+                    // Set error as tainted
+                    ctx.environment.assign(param_name, {
+                        value: error,
+                        isTainted: false
+                    });
+                }
 
-        //         // Evaluate block
-        //         this.eval(handler.body);
+                // Evaluate block
+                catch_block = this.get_stmt_wrapper(
+                    this.eval, 
+                    handler.body,
+                    ctx
+                ) as t.BlockStatement;
+
+                if (original_error_value) ctx.environment.assign(
+                    (param_name as string), // If original_error_value is defined, so is param_name
+                    original_error_value
+                );
+            } finally {
+
+                // If the catch block was not executed, we taint the block
+                // Taint must be propogated before executing finalizer block
 
 
 
+                if (node.finalizer) {
+                    finalizer_block = this.get_stmt_wrapper(
+                        this.eval, 
+                        node.finalizer, 
+                        ctx
+                    ) as t.BlockStatement;
+                }
+            }
 
 
+            try_stmt = t.tryStatement(
+                try_block,
+                catch_block,
 
-        //     } finally {
+            )
 
-        //     }
-        // }
+            return this.append_ast(try_stmt)
+
+        }
 
         // if (t.isThrowStatement(node)) {
         //     const arg = this.eval(node.argument, ctx) as TaintedLiteral;
@@ -925,7 +970,7 @@ export class TaintInterpreter {
                 return this.append_ast(while_stmt);
             }
 
-            return
+            return;
         }
 
         if (t.isLabeledStatement(node)) {
@@ -962,16 +1007,16 @@ export class TaintInterpreter {
 
         }
 
-        if (t.isBreakStatement(node)) {
-            let label = node.label?.name;
+        // if (t.isBreakStatement(node)) {
+        //     let label = node.label?.name;
 
-            if (label) { // Break out of label
-                let callstack_len = ctx.environment.resolve(label + 'LabeledStatement').value
-                this.callstack.splice(callstack_len); 
-            } else { // Break out of current context
-                this.callstack.pop();
-            }
-        }
+        //     if (label) { // Break out of label
+        //         let callstack_len = ctx.environment.resolve(label + 'LabeledStatement').value
+        //         this.callstack.splice(callstack_len); 
+        //     } else { // Break out of current context
+        //         this.callstack.pop();
+        //     }
+        // }
 
         throw new NotImplementedException(node.type)
     }
