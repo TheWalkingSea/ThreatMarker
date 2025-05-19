@@ -43,6 +43,14 @@ export class TaintInterpreter {
         this.ast.push(stmt);
     }
 
+    /** 
+     * Executes the function in a wrapper that temporarily sets return_stmt_flag to true
+     * As a result, this wrapper will execute the passed function into a context that will return the statement instead of appending to the AST
+     * @template T - A function type of the passed function
+     * @param {T} fn - The function being executed in the wrapper 
+     * @param {...Parameters<T>} args - The arguments to pass into the wrapped function
+     * @returns {ReturnType<T>} - Returns the result from the function
+     */
     get_stmt_wrapper<T extends (...args: any[]) => any>(fn: T, ...args: Parameters<T>): ReturnType<T> {
         const initial_return_stmt_flag = this.return_stmt_flag;
         this.return_stmt_flag = true;
@@ -58,15 +66,20 @@ export class TaintInterpreter {
      * Code block is executed in isolation. Taint will be propogated afterwards
      * @param {t.BlockStatement} block - The node being simplified
      * @param {ExecutionContext} ctx - The context in which the node is being executed in
+     * @param {Object} param - Object representing metainfo for ExecutionContext
+     * @param {string} param.type - The type of function being executed in the sandbox
+     * @param {string} param.name - Metainformation used primarily for labelling; implemented for support purposes
      * @returns {t.BlockStatement | t.ExpressionStatement} - Returns the simplified ambiguous BlockStatement
      */
-    simplify_ambiguous_flow(block: t.BlockStatement, ctx: ExecutionContext): t.BlockStatement | t.ExpressionStatement | null {
+    simplify_ambiguous_flow(block: t.BlockStatement, ctx: ExecutionContext, { type, name }: { type?: string, name?: string } = {}): t.BlockStatement | t.ExpressionStatement | null {
         
         if (!block) return null;
 
         let isolatedCtx = new ExecutionContext(
             ctx.thisValue,
-            new Environment(new Map(), ctx.environment, true, false) // taint_parent_writes = true
+            new Environment(new Map(), ctx.environment, true, false), // taint_parent_writes = true
+            type,
+            name
         )
         
         // Put if statement in it's own context
@@ -460,7 +473,8 @@ export class TaintInterpreter {
 
                     let isolatedCtx = new ExecutionContext(
                         ctx.thisValue,
-                        new Environment(new Map(), ctx.environment, true, false) // taint_parent_writes = true
+                        new Environment(new Map(), ctx.environment, true, false), // taint_parent_writes = true
+                        'ConditionalExpression'
                     )
                     
                     // Put ternary statement in it's own context
@@ -752,7 +766,7 @@ export class TaintInterpreter {
                 const env = new Environment(activation_record, parent_env, false, false);
 
                 // @ts-ignore - Ignore `this` error
-                const exec_ctx = new ExecutionContext(this, env);
+                const exec_ctx = new ExecutionContext(this, env, 'FunctionExpression'); // When executed, it will be in context of a FunctionExpression
                 self.callstack.push(exec_ctx);
 
                 self.returnValue = {
@@ -796,7 +810,7 @@ export class TaintInterpreter {
 
             // Ran in isolation => parent_env = null
             const env = new Environment(record, null, false, false, true);
-            const exec_ctx = new ExecutionContext(self, env);
+            const exec_ctx = new ExecutionContext(self, env, 'FunctionDeclaration');
             self.callstack.push(exec_ctx);
 
             // Run block in isolation
@@ -1039,7 +1053,7 @@ export class TaintInterpreter {
             if (test.isTainted) {
                 // We must update unchanged_variables through a first pass, then deobfuscate the code
                 const env = new Environment(new Map(), ctx.environment, true, false, true);
-                const exec_ctx = new ExecutionContext(this, env);
+                const exec_ctx = new ExecutionContext(this, env, 'WhileStatement');
 
                 this.callstack.push(exec_ctx);
 
