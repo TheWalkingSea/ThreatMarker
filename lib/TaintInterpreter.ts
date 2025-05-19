@@ -1028,37 +1028,33 @@ export class TaintInterpreter {
         }
 
         if (t.isLabeledStatement(node)) {
-            let label = node.label.name
+            const label = node.label.name; // Label is always an identifier
 
-            let initial_callstack_length = this.callstack.length; // BTW: This is a copy, not reference
-            // Assign the label the length of the original callstack. This number will be used to track if the label is in context or not
-            // Declare is omitted - We assume that ReferenceException is never raised
-            ctx.environment.assign(label + 'LabeledStatement', {
-                value: initial_callstack_length,
-                isTainted: false
-            })
+            // Execution Phase
 
-            // Now we add a clone of the callstack to the environment. This is purely to make the callstack size larger, so that when broken, it matches the original callstack length
-            let newctx = this.callstack[initial_callstack_length - 1]; // Technically this is a reference to the original context
-            this.callstack.push(newctx);
+            // Create new ExecutionContext with the label set
+            const env = new Environment(new Map(), ctx.environment);
+            const exec_ctx = new ExecutionContext(this, env, "LabeledStatement", label);
+            this.callstack.push(exec_ctx);
 
-            // Now we execute the body as normal. If broken, the evaluator should automatically exit all the cascaded blocks
-            let body = this.get_stmt_wrapper(
+            const body = this.get_stmt_wrapper(
                 this.eval,
                 node.body,
-                ctx
-            ) as t.Statement
-
-            // If not broken, remove the duplicated ctx
-            this.callstack.splice(initial_callstack_length);
-
-            let labeled_stmt = t.labeledStatement(
-                t.identifier(label),
-                body
+                exec_ctx
             )
 
-            return this.append_ast(labeled_stmt)
+            if (exec_ctx == this.callstack[this.callstack.length - 1]) { // If the Label was not broken out of, it should still be on callstack
+                this.callstack.pop();
+            }
 
+            // AST Phase
+            const labeled_stmt = t.labeledStatement(
+                t.identifier(label),
+                (body as t.Statement)
+            )
+
+
+            return this.append_ast(labeled_stmt);
         }
 
         // if (t.isBreakStatement(node)) {
