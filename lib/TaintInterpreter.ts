@@ -966,6 +966,38 @@ export class TaintInterpreter {
             return this.append_ast(try_stmt)
         }
 
+        // Jump Statements
+
+        if (t.isLabeledStatement(node)) {
+            const label = node.label.name; // Label is always an identifier
+
+            // Execution Phase
+
+            // Create new ExecutionContext with the label set
+            const env = new Environment(new Map(), ctx.environment);
+            const exec_ctx = new ExecutionContext(this, env, "LabeledStatement", label);
+            this.callstack.push(exec_ctx);
+
+            const body = this.get_stmt_wrapper(
+                this.eval,
+                node.body,
+                exec_ctx
+            )
+
+            if (exec_ctx == this.callstack[this.callstack.length - 1]) { // If the Label was not broken out of, it should still be on callstack
+                this.callstack.pop();
+            }
+
+            // AST Phase
+            const labeled_stmt = t.labeledStatement(
+                t.identifier(label),
+                (body as t.Statement)
+            )
+
+
+            return this.append_ast(labeled_stmt);
+        }
+
         // if (t.isThrowStatement(node)) {
         //     const arg = this.eval(node.argument, ctx) as TaintedLiteral;
 
@@ -974,6 +1006,17 @@ export class TaintInterpreter {
 
         //     throw arg;
         //     return ret;
+        // }
+
+        // if (t.isBreakStatement(node)) {
+        //     let label = node.label?.name;
+
+        //     if (label) { // Break out of label
+        //         let callstack_len = ctx.environment.resolve(label + 'LabeledStatement').value
+        //         this.callstack.splice(callstack_len); 
+        //     } else { // Break out of current context
+        //         this.callstack.pop();
+        //     }
         // }
 
         // Loops
@@ -1026,47 +1069,6 @@ export class TaintInterpreter {
 
             return;
         }
-
-        if (t.isLabeledStatement(node)) {
-            const label = node.label.name; // Label is always an identifier
-
-            // Execution Phase
-
-            // Create new ExecutionContext with the label set
-            const env = new Environment(new Map(), ctx.environment);
-            const exec_ctx = new ExecutionContext(this, env, "LabeledStatement", label);
-            this.callstack.push(exec_ctx);
-
-            const body = this.get_stmt_wrapper(
-                this.eval,
-                node.body,
-                exec_ctx
-            )
-
-            if (exec_ctx == this.callstack[this.callstack.length - 1]) { // If the Label was not broken out of, it should still be on callstack
-                this.callstack.pop();
-            }
-
-            // AST Phase
-            const labeled_stmt = t.labeledStatement(
-                t.identifier(label),
-                (body as t.Statement)
-            )
-
-
-            return this.append_ast(labeled_stmt);
-        }
-
-        // if (t.isBreakStatement(node)) {
-        //     let label = node.label?.name;
-
-        //     if (label) { // Break out of label
-        //         let callstack_len = ctx.environment.resolve(label + 'LabeledStatement').value
-        //         this.callstack.splice(callstack_len); 
-        //     } else { // Break out of current context
-        //         this.callstack.pop();
-        //     }
-        // }
 
         throw new NotImplementedException(node.type)
     }
