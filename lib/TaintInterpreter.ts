@@ -534,7 +534,7 @@ export class TaintInterpreter {
 
             if (test.isTainted) { // All subsequent nodes are tainted
 
-                let consequent = this.simplify_ambiguous_flow(node.consequent as t.BlockStatement, ctx) as t.BlockStatement;
+                let consequent = this.simplify_ambiguous_flow(node.consequent as t.BlockStatement, ctx, { type: "IfStatement" }) as t.BlockStatement;
                 let alternate;
                 if (t.isIfStatement(node.alternate)) {
                     // Since the else block is considered tainted, we need to execute the block as tainted.
@@ -560,7 +560,7 @@ export class TaintInterpreter {
                     } 
 
                 } else if (t.isBlockStatement(node.alternate)) {
-                    alternate = this.simplify_ambiguous_flow(node.alternate as t.BlockStatement, ctx); // Could be null
+                    alternate = this.simplify_ambiguous_flow(node.alternate as t.BlockStatement, ctx, { type: "IfStatement" }); // Could be null
                 }
 
                 return this.append_ast(
@@ -943,7 +943,7 @@ export class TaintInterpreter {
                     }
 
                     // Simplify block - Function executes in isolation so only taint is propogated
-                    catch_block = this.simplify_ambiguous_flow(handler.body as t.BlockStatement, ctx) as t.BlockStatement;
+                    catch_block = this.simplify_ambiguous_flow(handler.body as t.BlockStatement, ctx, { type: "CatchClause" }) as t.BlockStatement;
 
                     // Reset environment
                     if (original_error_value) ctx.environment.assign(
@@ -1022,16 +1022,38 @@ export class TaintInterpreter {
         //     return ret;
         // }
 
-        // if (t.isBreakStatement(node)) {
-        //     let label = node.label?.name;
+        // TODO:
+        // Uncertain if untainted `break` statements should be appended to AST
+        if (t.isBreakStatement(node)) {
+            const BREAKABLE_ENVIRONMENTS = ['ForInStatement', 'SwitchCase', 'SwitchStatement', 'LabeledStatement', 'ForStatement', 'DoWhileStatement', 'WhileStatement']
 
-        //     if (label) { // Break out of label
-        //         let callstack_len = ctx.environment.resolve(label + 'LabeledStatement').value
-        //         this.callstack.splice(callstack_len); 
-        //     } else { // Break out of current context
-        //         this.callstack.pop();
-        //     }
-        // }
+            let label = node.label?.name;
+
+            if (!ctx.environment.taint_parent_writes) { // Non-tainted environment
+                if (label) { // Keep removing environments until label is hit
+                    while (this.callstack.length > 0 && this.callstack[this.callstack.length - 1]?.type !== label) {
+                        this.callstack.pop();
+                    }
+                    if (this.callstack.length === 0) {
+                        throw new ReferenceException(`LabelStatement: ${label}`);
+                    }
+
+                } else { // Untainted environment - Keep removing environments until a BREAKABLE ENVIRONMENT is hit
+                    while (!BREAKABLE_ENVIRONMENTS.includes((this.callstack.pop() as ExecutionContext)?.type)) {
+                        if (this.callstack.length === 0) {
+                            throw new Error("`break` Statement called outside of a loop");
+                        }
+                    }
+
+                    // Add to AST
+
+                    // const break_stmt = t.breakStatement(null);
+
+                    // return this.append_ast(break_stmt);
+                    return;
+                }
+            }
+        }
 
         // Loops
 
@@ -1040,14 +1062,21 @@ export class TaintInterpreter {
             let test = this.eval(node.test, ctx) as TaintedLiteral;
 
             // Untainted While Loop
+            const initial_type = ctx.type;
+            ctx.type = 'WhileStatement'; // Put statement in context
             while (!test.isTainted && test.value) { // Quit if test is taint or test is False
 
                 // Evaluate Block
                 // Note: return_stmt_flag is set to false because we want to dupe statements
                 this.eval(node.body, ctx);
 
+                if (ctx !== this.callstack[this.callstack.length - 1]) {
+                    break;
+                }
+
                 test = this.eval(node.test, ctx) as TaintedLiteral; // Re-evaluate test
             }
+            ctx.type = initial_type;
 
             // Tainted While Loop
             if (test.isTainted) {
