@@ -103,3 +103,6 @@ describe("TryStatement", () => {
     test('Tainted', test_ast('TryStatement/tainted'));
     test('Finally', test_ast('TryStatement/finally'));
 });
+describe("BreakStatement", () => {
+    test('Std Untainted Test', test_ast('BreakStatement/untainted'));
+});
