@@ -1085,7 +1085,11 @@ export class TaintInterpreter {
 
                 test = this.eval(node.test, ctx) as TaintedLiteral; // Re-evaluate test
             }
-            ctx.type = this.callstack[this.callstack.length - 1].type = initial_type;
+            ctx.type = initial_type;
+            // If loop not broken, reset the current context
+            if (this.callstack[this.callstack.length - 1] === ctx) {
+                this.callstack[this.callstack.length - 1].type = initial_type;
+            }
 
             // Tainted While Loop
             if (test.isTainted) {
