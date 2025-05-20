@@ -1031,12 +1031,13 @@ export class TaintInterpreter {
 
             if (!ctx.environment.taint_parent_writes) { // Non-tainted environment
                 if (label) { // Keep removing environments until label is hit
-                    while (this.callstack.length > 0 && this.callstack[this.callstack.length - 1]?.type !== label) {
-                        this.callstack.pop();
+                    while ((this.callstack.pop() as ExecutionContext)?.name !== label) {
+                        if (this.callstack.length === 0) {
+                            throw new ReferenceException(`LabelStatement: ${label}`);
+                        }
                     }
-                    if (this.callstack.length === 0) {
-                        throw new ReferenceException(`LabelStatement: ${label}`);
-                    }
+
+                    return;
 
                 } else { // Untainted environment - Keep removing environments until a BREAKABLE ENVIRONMENT is hit
                     while (!BREAKABLE_ENVIRONMENTS.includes((this.callstack.pop() as ExecutionContext)?.type)) {
@@ -1062,13 +1063,21 @@ export class TaintInterpreter {
             let test = this.eval(node.test, ctx) as TaintedLiteral;
 
             // Untainted While Loop
+            let block_stmts: t.Statement[] = [];
+
             const initial_type = ctx.type;
-            ctx.type = 'WhileStatement'; // Put statement in context
+            // Theoretically ctx should be the last item in the callstack
+            ctx.type = this.callstack[this.callstack.length - 1].type = 'WhileStatement'; // Put statement in context
             while (!test.isTainted && test.value) { // Quit if test is taint or test is False
 
                 // Evaluate Block
                 // Note: return_stmt_flag is set to false because we want to dupe statements
-                this.eval(node.body, ctx);
+                const evaluated_block = this.get_stmt_wrapper(
+                    this.eval,
+                    node.body,
+                    ctx
+                ) as t.BlockStatement;
+                block_stmts.push(evaluated_block);
 
                 if (ctx !== this.callstack[this.callstack.length - 1]) {
                     break;
@@ -1076,7 +1085,7 @@ export class TaintInterpreter {
 
                 test = this.eval(node.test, ctx) as TaintedLiteral; // Re-evaluate test
             }
-            ctx.type = initial_type;
+            ctx.type = this.callstack[this.callstack.length - 1].type = initial_type;
 
             // Tainted While Loop
             if (test.isTainted) {
@@ -1107,10 +1116,18 @@ export class TaintInterpreter {
                     body
                 );
 
+                // Add untainted statements (if executed)
+                if (block_stmts.length > 0) {
+                    block_stmts.push(while_stmt);
+                    const encapsulated_blocks = t.blockStatement(block_stmts);
+                    return this.append_ast(encapsulated_blocks);
+                }
+
                 return this.append_ast(while_stmt);
             }
 
-            return;
+            const encapsulated_blocks = t.blockStatement(block_stmts);
+            return this.append_ast(encapsulated_blocks);
         }
 
         throw new NotImplementedException(node.type)
