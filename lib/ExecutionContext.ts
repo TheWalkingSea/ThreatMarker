@@ -10,7 +10,7 @@ export class ExecutionContext {
     constructor(thisValue: any, environment: Environment, type: string="", name: string="") {
         this.thisValue = thisValue;
         this.environment = environment;
-        this.type = type;
-        this.name = name;
+        this.type = type; // Node type encapsulating environment
+        this.name = name; // Used for LabeledStatement
     }
 }
