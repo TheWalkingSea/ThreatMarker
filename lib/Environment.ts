@@ -23,6 +23,15 @@ export class Environment {
         this.ignore_reference_exception = ignore_reference_exception; // For function blocks running in isolation, any parent references that are undefined are ignored
     }
 
+    is_tainted_environment(): Boolean {
+        if (this.parent) {
+            return this.taint_parent_writes || this.parent.is_tainted_environment();
+        }
+        
+        // If no parent, just return taint_parent_writes
+        return this.taint_parent_writes;
+    }
+
     declare(name: string): void {
         // We will disregard this error due to assumptions about the program
         // if (this.record.has(name)) throw new DeclarationException(name);
