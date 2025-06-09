@@ -6,7 +6,7 @@ while (b > 0) {
 
     if (a == 1) break;
 
-    a--;
+    a -= 1;
 }
 
 a;

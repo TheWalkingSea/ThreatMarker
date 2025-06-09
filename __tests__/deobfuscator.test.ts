@@ -113,4 +113,5 @@ describe("BreakStatement", () => {
     test('Std Tainted Test 3', test_ast('BreakStatement/tainted_3'));
     test('Redundant Code Test', test_ast('BreakStatement/tainted_4'));
     test('Nested WhileStatement Test', test_ast('BreakStatement/tainted_5'));
+    test('Std Tainted Test 6', test_ast('BreakStatement/tainted_6'));
 });
