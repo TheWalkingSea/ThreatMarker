@@ -90,7 +90,7 @@ export class TaintInterpreter {
             this.eval, block, isolatedCtx
             ) as t.BlockStatement | t.ExpressionStatement;
 
-        this.callstack.pop() // Remove isolatedEnv
+        if (this.callstack[this.callstack.length - 1] === isolatedCtx) this.callstack.pop(); // Remove isolatedEnv
 
         // Any variables defined in the inner block are tainted in outer scope
         isolatedCtx.environment.record.forEach((value: TaintedLiteral, key: string, _) => {
@@ -1025,11 +1025,23 @@ export class TaintInterpreter {
         // TODO:
         // Uncertain if untainted `break` statements should be appended to AST
         if (t.isBreakStatement(node)) {
-            const BREAKABLE_ENVIRONMENTS = ['ForInStatement', 'SwitchCase', 'SwitchStatement', 'LabeledStatement', 'ForStatement', 'DoWhileStatement', 'WhileStatement']
-
+            const BREAKABLE_ENVIRONMENTS = ['ForInStatement', 'SwitchCase', 'SwitchStatement', 'ForStatement', 'DoWhileStatement', 'WhileStatement', 'LabeledStatement']
+            
+            // 1. Find loop's ExecutionContext being broken out of
             let label = node.label?.name;
+            let break_exec_ctx: ExecutionContext | undefined;
+            for (let i=this.callstack.length-1;i>=0;i--) {
+                if ((label && this.callstack[i]?.name === label) || (!label && BREAKABLE_ENVIRONMENTS.includes(this.callstack[i]?.type))) {
+                    break_exec_ctx = this.callstack[i];
+                    break;
+                }
+            }
 
-            if (!ctx.environment.taint_parent_writes) { // Non-tainted environment
+            if (typeof break_exec_ctx === 'undefined') {
+                throw new ReferenceException(`LabelStatement: ${label}`);
+            }
+
+            if (!ctx.environment.is_tainted_environment(break_exec_ctx.environment)) { // Non-tainted Environment
                 if (label) { // Keep removing environments until label is hit
                     while ((this.callstack.pop() as ExecutionContext)?.name !== label) {
                         if (this.callstack.length === 0) {
@@ -1053,6 +1065,16 @@ export class TaintInterpreter {
                     // return this.append_ast(break_stmt);
                     return;
                 }
+            } else { // Tainted Environment
+                while (!(this.callstack.pop() as ExecutionContext).environment.is_tainted());
+
+                break_exec_ctx.environment.taint_parent_writes = true; // Taint the environment just before this
+
+                const break_stmt = t.breakStatement(
+                    label ? t.identifier(label) : null
+                )
+
+                return this.append_ast(break_stmt);
             }
         }
 
@@ -1065,10 +1087,11 @@ export class TaintInterpreter {
             // Untainted While Loop
             let block_stmts: t.Statement[] = [];
 
-            const initial_type = ctx.type;
-            // Theoretically ctx should be the last item in the callstack
-            ctx.type = this.callstack[this.callstack.length - 1].type = 'WhileStatement'; // Put statement in context
-            while (!test.isTainted && test.value) { // Quit if test is taint or test is False
+            const env_1 = new Environment(new Map(), ctx.environment, false, false, false);
+            const exec_ctx_1 = new ExecutionContext(this, env_1, 'WhileStatement');
+            this.callstack.push(exec_ctx_1);
+
+            while (!test.isTainted && !exec_ctx_1.environment.is_tainted() && test.value) { // Quit if test is taint or test is False
 
                 // Evaluate Block
                 // Note: return_stmt_flag is set to false because we want to dupe statements
@@ -1085,14 +1108,10 @@ export class TaintInterpreter {
 
                 test = this.eval(node.test, ctx) as TaintedLiteral; // Re-evaluate test
             }
-            ctx.type = initial_type;
-            // If loop not broken, reset the current context
-            if (this.callstack[this.callstack.length - 1] === ctx) {
-                this.callstack[this.callstack.length - 1].type = initial_type;
-            }
+            this.callstack.pop();
 
             // Tainted While Loop
-            if (test.isTainted) {
+            if (test.isTainted || exec_ctx_1.environment.is_tainted()) {
                 // We must update unchanged_variables through a first pass, then deobfuscate the code
                 const env = new Environment(new Map(), ctx.environment, true, false, true);
                 const exec_ctx = new ExecutionContext(this, env, 'WhileStatement');
@@ -1107,12 +1126,9 @@ export class TaintInterpreter {
                 const body = this.eval(node.body, exec_ctx) as t.BlockStatement;
                 this.return_stmt_flag = initial_return_stmt_flag;
 
-                // Remove ExecutionContext
-                this.callstack.pop();
-
                 const test_stmt = this.eval(node.test, exec_ctx) as TaintedLiteral;
 
-                // // Remove ExecutionContext
+                // Remove ExecutionContext
                 this.callstack.pop();
 
                 const while_stmt = t.whileStatement(
