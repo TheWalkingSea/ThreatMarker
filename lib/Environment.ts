@@ -23,13 +23,21 @@ export class Environment {
         this.ignore_reference_exception = ignore_reference_exception; // For function blocks running in isolation, any parent references that are undefined are ignored
     }
 
-    is_tainted_environment(): Boolean {
+    is_tainted(): Boolean {
+        return this.taint_parent_writes;
+    }
+
+    is_tainted_environment(limit: Environment | null=null): Boolean {
+        if (limit && this === limit) {
+            return false;
+        }
+
         if (this.parent) {
-            return this.taint_parent_writes || this.parent.is_tainted_environment();
+            return this.is_tainted() || this.parent.is_tainted_environment();
         }
         
         // If no parent, just return taint_parent_writes
-        return this.taint_parent_writes;
+        return this.is_tainted()
     }
 
     declare(name: string): void {
