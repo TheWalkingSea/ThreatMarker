@@ -107,7 +107,7 @@ describe("TryStatement", () => {
 });
 describe("BreakStatement", () => {
     test('Std Untainted Test', test_ast('BreakStatement/untainted'));
-    test('Labelled Untainted Test', test_ast('BreakStatement/untainted_label'));
+    test('Labeled Untainted Test', test_ast('BreakStatement/untainted_label'));
     test('Std Tainted Test', test_ast('BreakStatement/tainted'));
     test('Std Tainted Test 2', test_ast('BreakStatement/tainted_2'));
     test('Std Tainted Test 3', test_ast('BreakStatement/tainted_3'));
@@ -115,4 +115,5 @@ describe("BreakStatement", () => {
     test('Nested WhileStatement Test', test_ast('BreakStatement/tainted_5'));
     test('Std Tainted Test 6', test_ast('BreakStatement/tainted_6'));
     test('Tainted Test', test_ast('BreakStatement/tainted_test'));
+    test('Labeled Tainted Test', test_ast('BreakStatement/tainted_test'));
 });
