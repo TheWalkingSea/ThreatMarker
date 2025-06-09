@@ -78,6 +78,7 @@ describe("ConditionalExpression", () => {
 describe("WhileLoop", () => {
     test('Untainted Condition', test_ast('WhileLoop/untaint'));
     test('Tainted Condition - External Write', test_ast('WhileLoop/taint_ext_write'));
+    test('Tainted Condition - External Write 2', test_ast('WhileLoop/taint_ext_write_2'));
     test('Tainted Condition - External Read', test_ast('WhileLoop/taint_ext_read'));
     test('Tainted Condition - Block Simplification', test_ast('WhileLoop/taint_int'));
 });
@@ -110,4 +111,6 @@ describe("BreakStatement", () => {
     test('Std Tainted Test', test_ast('BreakStatement/tainted'));
     test('Std Tainted Test 2', test_ast('BreakStatement/tainted_2'));
     test('Std Tainted Test 3', test_ast('BreakStatement/tainted_3'));
+    test('Redundant Code Test', test_ast('BreakStatement/tainted_4'));
+    test('Nested WhileStatement Test', test_ast('BreakStatement/tainted_5'));
 });
