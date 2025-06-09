@@ -1094,15 +1094,14 @@ export class TaintInterpreter {
             while (!test.isTainted && !exec_ctx_1.environment.is_tainted() && test.value) { // Quit if test is taint or test is False
 
                 // Evaluate Block
-                // Note: return_stmt_flag is set to false because we want to dupe statements
                 const evaluated_block = this.get_stmt_wrapper(
                     this.eval,
                     node.body,
-                    ctx
+                    exec_ctx_1
                 ) as t.BlockStatement;
                 block_stmts.push(evaluated_block);
 
-                if (ctx !== this.callstack[this.callstack.length - 1]) {
+                if (exec_ctx_1 !== this.callstack[this.callstack.length - 1]) {
                     break;
                 }
 
@@ -1135,13 +1134,6 @@ export class TaintInterpreter {
                     get_repr(test_stmt),
                     body
                 );
-
-                // Add untainted statements (if executed)
-                if (block_stmts.length > 0) {
-                    block_stmts.push(while_stmt);
-                    const encapsulated_blocks = t.blockStatement(block_stmts);
-                    return this.append_ast(encapsulated_blocks);
-                }
 
                 return this.append_ast(while_stmt);
             }
