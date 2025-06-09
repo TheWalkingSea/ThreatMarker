@@ -107,4 +107,7 @@ describe("TryStatement", () => {
 describe("BreakStatement", () => {
     test('Std Untainted Test', test_ast('BreakStatement/untainted'));
     test('Labelled Untainted Test', test_ast('BreakStatement/untainted_label'));
+    test('Std Tainted Test', test_ast('BreakStatement/tainted'));
+    test('Std Tainted Test 2', test_ast('BreakStatement/tainted_2'));
+    test('Std Tainted Test 3', test_ast('BreakStatement/tainted_3'));
 });
