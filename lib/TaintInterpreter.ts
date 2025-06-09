@@ -440,7 +440,7 @@ export class TaintInterpreter {
                 value = operand.value + (node.prefix ? 1 : 0); // Add one if ++VAR
                 operand.value += 1;
             } else if (node.operator === "--") {
-                value = operand.value - (node.prefix ? 1 : 0); // Add one if --VAR
+                value = operand.value - (node.prefix ? 1 : 0); // Subtract one if --VAR
                 operand.value -= 1;
             }
 
