@@ -28,7 +28,7 @@
 'ForStatement',
 'LabeledStatement', ✔️
 'ContinueStatement',
-'BreakStatement',
+'BreakStatement', ✔️✔️
 'MemberExpression',
 'SwitchStatement',
 'SwitchCase',
