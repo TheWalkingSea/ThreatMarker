@@ -1,7 +1,7 @@
 import * as t from '@babel/types';
 
 
-export function Value(value: any): t.Literal {
+export function Value(value: any): t.Literal | t.Expression {
     if (typeof value === 'string') {
         return t.stringLiteral(value);  // Create a numeric literal
     } else if (typeof value === 'number') {
@@ -12,6 +12,10 @@ export function Value(value: any): t.Literal {
         return t.nullLiteral();  // Handle null literals
     } else if (value instanceof RegExp) {
         return t.regExpLiteral(value.source, value.flags);
+    } else if (typeof value == 'object') {
+        return t.arrayExpression(
+            value.map((x: TaintedLiteral) => get_repr(x))
+        );
     } else {
         console.debug(value);
         console.debug(typeof value);

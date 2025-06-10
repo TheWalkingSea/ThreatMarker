@@ -4,9 +4,7 @@ import { NotImplementedException } from "./NotImplementedException";
 import { DeobfuscatorException } from "./DeobfuscatorException";
 import { ReferenceException } from "./ReferenceException";
 import * as t from '@babel/types';
-import { Value, get_repr } from './../utils/to_value';
-import { exec } from "node:child_process";
-import { wrap } from "node:module";
+import { get_repr } from './../utils/to_value';
 
 export class TaintInterpreter {
     callstack: Array<ExecutionContext>;
@@ -1022,8 +1020,6 @@ export class TaintInterpreter {
         //     return ret;
         // }
 
-        // TODO:
-        // Uncertain if untainted `break` statements should be appended to AST
         if (t.isBreakStatement(node)) {
             const BREAKABLE_ENVIRONMENTS = ['ForInStatement', 'SwitchCase', 'SwitchStatement', 'ForStatement', 'DoWhileStatement', 'WhileStatement', 'LabeledStatement']
             
@@ -1140,6 +1136,30 @@ export class TaintInterpreter {
 
             const encapsulated_blocks = t.blockStatement(block_stmts);
             return this.append_ast(encapsulated_blocks);
+        }
+
+        // TODO: Taint is NOT assumed for all lists, but is not always the case.
+        if (t.isArrayExpression(node)) {
+            let element_list: Array<TaintedLiteral> = [];
+            for (const element of node.elements) {
+                element_list.push(
+                    this.get_stmt_wrapper(
+                        this.eval,
+                        (element as t.Expression),
+                        ctx
+                    ) as TaintedLiteral
+                );
+            }
+
+            const array_expr = t.arrayExpression(
+                element_list.map((x) => get_repr(x))
+            )
+
+            return {
+                node: array_expr,
+                value: element_list,
+                isTainted: false
+            }
         }
 
         throw new NotImplementedException(node.type)

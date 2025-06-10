@@ -106,14 +106,18 @@ describe("TryStatement", () => {
     test('Finally', test_ast('TryStatement/finally'));
 });
 describe("BreakStatement", () => {
-    test('Std Untainted Test', test_ast('BreakStatement/untainted'));
-    test('Labeled Untainted Test', test_ast('BreakStatement/untainted_label'));
-    test('Std Tainted Test', test_ast('BreakStatement/tainted'));
-    test('Std Tainted Test 2', test_ast('BreakStatement/tainted_2'));
-    test('Std Tainted Test 3', test_ast('BreakStatement/tainted_3'));
-    test('Redundant Code Test', test_ast('BreakStatement/tainted_4'));
-    test('Nested WhileStatement Test', test_ast('BreakStatement/tainted_5'));
-    test('Std Tainted Test 6', test_ast('BreakStatement/tainted_6'));
-    test('Tainted Test', test_ast('BreakStatement/tainted_test'));
-    test('Labeled Tainted Test', test_ast('BreakStatement/tainted_test'));
+    test('Std Untainted', test_ast('BreakStatement/untainted'));
+    test('Labeled Untainted', test_ast('BreakStatement/untainted_label'));
+    test('Std Tainted 1', test_ast('BreakStatement/tainted'));
+    test('Std Tainted 2', test_ast('BreakStatement/tainted_2'));
+    test('Std Tainted 3', test_ast('BreakStatement/tainted_3'));
+    test('Redundant Code', test_ast('BreakStatement/tainted_4'));
+    test('Nested WhileStatement', test_ast('BreakStatement/tainted_5'));
+    test('Std Tainted 6', test_ast('BreakStatement/tainted_6'));
+    test('Tainted', test_ast('BreakStatement/tainted_test'));
+    test('Labeled Tainted', test_ast('BreakStatement/tainted_test'));
+});
+
+describe("ArrayExpression", () => {
+    test('Array Initialization', test_ast('ArrayExpression/init'));
 });
