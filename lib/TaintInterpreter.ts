@@ -1162,6 +1162,55 @@ export class TaintInterpreter {
             }
         }
 
+        if (t.isMemberExpression(node)) {
+            const object = this.eval(node.object, ctx) as TaintedLiteral;
+            const property = this.eval(node.property, ctx) as TaintedLiteral;
+
+            // Creating the Member Expression object based on the property
+            // Typically, this should be at the end of the statement; however, the node is always the same no matter what is tainted!
+            let member_expr: t.MemberExpression;
+            if (!property.isTainted && t.isValidIdentifier(property.value)) {
+                    member_expr = t.memberExpression(
+                        object.node as t.Expression,
+                        t.identifier(property.value),
+                        false
+                    )
+                } else {
+                    member_expr = t.memberExpression(
+                        object.node as t.Expression,
+                        property.node as t.Expression,
+                        true
+                    )
+                }
+
+            // Tainted object parameter -> cannot resolve
+            if (object.isTainted) {
+                return {
+                    node: member_expr,
+                    isTainted: true
+                }
+            }
+
+            // Untainted object parameter -> can resolve to a value
+            if (property.isTainted) { // UNTAINTED[TAINTED]
+                return {
+                    node: member_expr,
+                    isTainted: true
+                }
+            } else { // UNTAINTED[UNTAINTED] -> Value!
+                const value = (object.value)[property.value] as TaintedLiteral;
+                return {
+                    node: member_expr,
+                    value: value,
+                    isTainted: value.isTainted
+                }
+            }
+        }
+
+        
+        
+
+
         throw new NotImplementedException(node.type)
     }
 }
