@@ -104,6 +104,27 @@ export class TaintInterpreter {
         return simplified_block;
     }
 
+    /**
+     * @param {t.MemberExpression} member_node - The unevaluated MemberExpression
+     * @param {TaintedLiteral} property - The evaluated property (OBJECT[PROPERTY])
+     * @returns {t.MemberExpression} - Returns a formatted MemberExpression
+     */
+    format_member_expression(member_node: t.MemberExpression, property: TaintedLiteral): t.MemberExpression {
+        if (!property.isTainted && t.isValidIdentifier(property.value)) {
+                return t.memberExpression(
+                    member_node.object as t.Identifier, // Should ALWAYS be an identifier node
+                    t.identifier(property.value),
+                    false
+                )
+            } else {
+                return t.memberExpression(
+                    member_node.object as t.Identifier, // Should ALWAYS be an identifier node
+                    get_repr(property),
+                    true
+                )
+            }
+    }
+
     /** 
      * Evaluates a node recursively
      * @param {t.Node} node - The node being executed
@@ -718,9 +739,128 @@ export class TaintInterpreter {
                     isTainted: false
                 } // Will be wrapped in another expression. ExpressionStatment, for example.
             }
-
+            
+            // Note: It is assumed that UNTAINTED[TAINTED] will not taint the entire object
             if (t.isMemberExpression(node.left)) {
-                throw new NotImplementedException('MemberExpression')
+                const node_left = (node.left as t.MemberExpression);
+                const left_object = this.eval(node_left.object, ctx) as TaintedLiteral;
+                const left_property = this.eval(node_left.property, ctx) as TaintedLiteral; // Note: If nested, will be recursively evaluated
+                const formatted_node = this.format_member_expression(node_left, left_property);
+
+                if (right_id.isTainted) { // If right is tainted, taint assignment
+                    if (!left_object.isTainted && !left_property.isTainted) {
+                        (left_object.value)[left_property.value] = {
+                            node: formatted_node,
+                            isTainted: true
+                        }
+                    }
+                    return {
+                        node: t.assignmentExpression(
+                            node.operator,
+                            formatted_node,
+                            get_repr(right_id)
+                        ),
+                        isTainted: true
+                    };
+                }
+
+                // Deals with a special case where UNTAINTED[UNTAINTED] returns a tainted node -> overwritten by right_id to UNTAINTED!
+                if (!left_object.isTainted && 
+                    !left_property.isTainted && 
+                    node.operator === '=') {
+                    (left_object.value)[left_property.value] = {
+                        value: right_id.value,
+                        isTainted: false
+                    };
+                }
+
+                // If left is tainted, simply return node
+                if (!left_object.isTainted || 
+                    !left_property.isTainted || (
+                        !left_object.isTainted && 
+                        !left_property.isTainted && 
+                        !((left_object.value)[left_property.value] as TaintedLiteral).isTainted
+                        ) // The last case is for UNTAINTED[UNTAINTED] -> Tainted node
+                    ) { 
+                    return {
+                        node: t.assignmentExpression(
+                            node.operator,
+                            formatted_node,
+                            get_repr(right_id)
+                        ),
+                        isTainted: true
+                    };
+                }
+
+                // Left ID and Right ID are untainted
+                let right = right_id.value;
+                let left_id = (left_object.value)[left_property.value] as TaintedLiteral;
+
+                let value;
+                let left = left_id.value; // Extract value
+
+                // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Expressions_and_operators
+                switch (node.operator) {
+                    case '=':
+                        value = right;
+                        break;
+                    case '+=':
+                        value = left + right;
+                        break;
+                    case '-=':
+                        value = left - right;
+                        break;
+                    case '*=':
+                        value = left * right;
+                        break;
+                    case '/=':
+                        value = left / right;
+                        break;
+                    case '%=':
+                        value = left % right;
+                        break;
+                    case '**=':
+                        value = left ** right;
+                        break;
+                    case '<<=':
+                        value = left << right;
+                        break;
+                    case '>>=':
+                        value = left >> right;
+                        break;
+                    case '>>>=':
+                        value = left >>> right;
+                        break;;
+                    case '&=':
+                        value = left & right;
+                        break;
+                    case '^=':
+                        value = left ^ right;
+                        break;
+                    case '|=':
+                        value = left | right;
+                        break;
+                    default:
+                        throw new NotImplementedException(node.operator)
+                }
+                
+                // (left_object.value)[left_property.value] = left_id -> Must replace to write-by-reference
+                (left_object.value)[left_property.value] = {
+                    value: value,
+                    isTainted: false
+                };
+
+                right_id.value = right;
+
+                return {
+                    node: t.assignmentExpression(
+                        node.operator,
+                        formatted_node,
+                        get_repr(right_id)
+                    ),
+                    isTainted: false
+                } // Will be wrapped in another expression. ExpressionStatment, for example.
+                
             }
 
         }
@@ -1166,22 +1306,7 @@ export class TaintInterpreter {
             const object = this.eval(node.object, ctx) as TaintedLiteral;
             const property = this.eval(node.property, ctx) as TaintedLiteral;
 
-            // Creating the Member Expression object based on the property
-            // Typically, this should be at the end of the statement; however, the node is always the same no matter what is tainted!
-            let member_expr: t.MemberExpression;
-            if (!property.isTainted && t.isValidIdentifier(property.value)) {
-                    member_expr = t.memberExpression(
-                        node.object as t.Identifier, // Should ALWAYS be an identifier node
-                        t.identifier(property.value),
-                        false
-                    )
-                } else {
-                    member_expr = t.memberExpression(
-                        node.object as t.Identifier, // Should ALWAYS be an identifier node
-                        get_repr(property),
-                        true
-                    )
-                }
+            const member_expr: t.MemberExpression = this.format_member_expression(node, property);
 
             // Tainted object parameter -> cannot resolve
             if (object.isTainted) {
