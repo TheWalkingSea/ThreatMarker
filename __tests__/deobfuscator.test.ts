@@ -117,7 +117,12 @@ describe("BreakStatement", () => {
     test('Tainted', test_ast('BreakStatement/tainted_test'));
     test('Labeled Tainted', test_ast('BreakStatement/tainted_test'));
 });
-
 describe("ArrayExpression", () => {
     test('Array Initialization', test_ast('ArrayExpression/init'));
+});
+describe("Member Expression", () => {
+    test('Tainted Tainted Array', test_ast('MemberExpression/tainted_tainted'));
+    test('Tainted Untainted Array', test_ast('MemberExpression/tainted_untainted'));
+    test('Untainted Tainted Array', test_ast('MemberExpression/untainted_tainted'));
+    test('Untainted Untainted Array', test_ast('MemberExpression/untainted_untainted'));
 });

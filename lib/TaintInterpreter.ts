@@ -1171,14 +1171,14 @@ export class TaintInterpreter {
             let member_expr: t.MemberExpression;
             if (!property.isTainted && t.isValidIdentifier(property.value)) {
                     member_expr = t.memberExpression(
-                        object.node as t.Expression,
+                        node.object as t.Identifier, // Should ALWAYS be an identifier node
                         t.identifier(property.value),
                         false
                     )
                 } else {
                     member_expr = t.memberExpression(
-                        object.node as t.Expression,
-                        property.node as t.Expression,
+                        node.object as t.Identifier, // Should ALWAYS be an identifier node
+                        get_repr(property),
                         true
                     )
                 }
@@ -1199,18 +1199,11 @@ export class TaintInterpreter {
                 }
             } else { // UNTAINTED[UNTAINTED] -> Value!
                 const value = (object.value)[property.value] as TaintedLiteral;
-                return {
-                    node: member_expr,
-                    value: value,
-                    isTainted: value.isTainted
-                }
+                return value;
             }
         }
 
         
-        
-
-
         throw new NotImplementedException(node.type)
     }
 }
