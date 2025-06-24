@@ -775,11 +775,11 @@ export class TaintInterpreter {
                 }
 
                 // If left is tainted, simply return node
-                if (!left_object.isTainted || 
-                    !left_property.isTainted || (
+                if (left_object.isTainted || 
+                    left_property.isTainted || (
                         !left_object.isTainted && 
                         !left_property.isTainted && 
-                        !((left_object.value)[left_property.value] as TaintedLiteral).isTainted
+                        ((left_object.value)[left_property.value] as TaintedLiteral).isTainted
                         ) // The last case is for UNTAINTED[UNTAINTED] -> Tainted node
                     ) { 
                     return {
