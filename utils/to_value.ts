@@ -16,7 +16,10 @@ export function Value(value: any): t.Literal | t.Expression {
         return t.arrayExpression(
             value.map((x: TaintedLiteral) => get_repr(x))
         );
-    } else {
+    } else if (typeof value == 'function') {
+        return value;
+    }
+    else {
         console.debug(value);
         console.debug(typeof value);
         throw new Error(`Unsupported type for value: ${value}, type: ${typeof value}`);
