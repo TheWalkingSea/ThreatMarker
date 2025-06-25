@@ -967,28 +967,67 @@ export class TaintInterpreter {
         }
 
         if (t.isCallExpression(node)) {
-            if (!t.isIdentifier(node.callee)) throw new NotImplementedException(`Function names of type ${typeof node.callee} not supported`)
             
-            const func: Function = ctx.environment.resolve(node.callee.name).value as Function; // Gets the runner function
+            // Get function
+            let func: Function;
+            if (t.isIdentifier(node.callee)) {
+                func = ctx.environment.resolve(node.callee.name).value as Function; // Gets the runner function
 
-            const args = node.arguments.map((n) => this.eval(n, ctx));
+                const args = node.arguments.map((n) => this.eval(n, ctx));
 
-            const result: TaintedLiteral = func(args, ctx.environment);
+                const result: TaintedLiteral = func(args, ctx.environment);
 
-            // Add to AST
-            if (!result.isTainted) { // Return value is not tainted
-                const seq_expr = t.sequenceExpression([
-                    node,
-                    get_repr(result)
-                ]);
-                result.node = seq_expr;
-                return result;
-            }
+                // Add to AST
+                if (!result.isTainted) { // Return value is not tainted
+                    const seq_expr = t.sequenceExpression([
+                        node,
+                        get_repr(result)
+                    ]);
+                    result.node = seq_expr;
+                    return result;
+                }
 
-            // Return value is tainted
-            return {
-                node: node,
-                isTainted: true
+                // Return value is tainted
+                return {
+                    node: node,
+                    isTainted: true
+                }
+            } else if (t.isMemberExpression(node.callee)) {
+                const node_callee = (node.callee as t.MemberExpression);
+                const object = this.eval(node_callee.object, ctx) as TaintedLiteral;
+                const property = this.eval(node_callee.property, ctx) as TaintedLiteral; // Note: If nested, will be recursively evaluated
+                const formatted_node = this.format_member_expression(node_callee, property);
+
+                if (object.isTainted || property.isTainted) { // Tainted resolve
+                    return {
+                        node: formatted_node,
+                        isTainted: true
+                    }
+                }
+
+                func = (object.value)[property.value] as Function; // Gets the runner function
+                
+                const args = node.arguments.map((n) => this.eval(n, ctx));
+
+                const result: TaintedLiteral = func(args, ctx.environment);
+
+                // Add to AST
+                if (!result.isTainted) { // Return value is not tainted
+                    const seq_expr = t.sequenceExpression([
+                        formatted_node,
+                        get_repr(result)
+                    ]);
+                    result.node = seq_expr;
+                    return result;
+                }
+
+                // Return value is tainted
+                return {
+                    node: formatted_node,
+                    isTainted: true
+                }
+            } else {
+                throw new NotImplementedException(`Function names of type ${typeof node.callee} not supported`)
             }
 
         }
