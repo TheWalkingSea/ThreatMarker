@@ -124,6 +124,7 @@ describe("Member Expression", () => {
     test('AssignmentExpression', test_ast('MemberExpression/AssignmentExpression'));
     test('CallExpression', test_ast('MemberExpression/CallExpression'));
     test('BinaryExpression', test_ast('MemberExpression/BinaryExpression'));
+    test('LogicalExpression', test_ast('MemberExpression/LogicalExpression'));
     test('Testing list writes', test_ast('MemberExpression/list_write_untainted'));
     test('Tainted Tainted Array', test_ast('MemberExpression/tainted_tainted'));
     test('Tainted Untainted Array', test_ast('MemberExpression/tainted_untainted'));
