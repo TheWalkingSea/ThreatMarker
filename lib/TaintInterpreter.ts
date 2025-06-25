@@ -749,10 +749,7 @@ export class TaintInterpreter {
 
                 if (right_id.isTainted) { // If right is tainted, taint assignment
                     if (!left_object.isTainted && !left_property.isTainted) {
-                        (left_object.value)[left_property.value] = {
-                            node: formatted_node,
-                            isTainted: true
-                        }
+                        (left_object.value)[left_property.value] = right_id;
                     }
                     return {
                         node: t.assignmentExpression(
