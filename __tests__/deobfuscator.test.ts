@@ -122,7 +122,8 @@ describe("ArrayExpression", () => {
 });
 describe("Member Expression", () => {
     test('Testing list writes', test_ast('MemberExpression/list_write_untainted'));
-    test('Writes - AssignmentExpression', test_ast('MemberExpression/write_assn_expr'));
+    test('AssignmentExpression', test_ast('MemberExpression/AssignmentExpression'));
+    test('CallExpression', test_ast('MemberExpression/CallExpression'));
     test('Tainted Tainted Array', test_ast('MemberExpression/tainted_tainted'));
     test('Tainted Untainted Array', test_ast('MemberExpression/tainted_untainted'));
     test('Untainted Tainted Array', test_ast('MemberExpression/untainted_tainted'));
