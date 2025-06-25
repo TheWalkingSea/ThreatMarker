@@ -78,7 +78,13 @@ export class Environment {
             });
         }
 
-        if (value && node) throw new Error(`value and node are both defined when assigning ${name}`)
+        if (value && node) {
+            env.record.set(name, {
+                node: node,
+                value: value,
+                isTainted: isTainted
+            })
+        }
     }
 
     setTaint(name: string, isTainted: Boolean): void {
