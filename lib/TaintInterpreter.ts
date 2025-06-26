@@ -1350,28 +1350,116 @@ export class TaintInterpreter {
 
         if (t.isMemberExpression(node)) {
             const object = this.eval(node.object, ctx) as TaintedLiteral;
-            const property = this.eval(node.property, ctx) as TaintedLiteral;
-
-            const member_expr: t.MemberExpression = this.format_member_expression(node, property);
-
-            // Tainted object parameter -> cannot resolve
-            if (object.isTainted) {
-                return {
-                    node: member_expr,
-                    isTainted: true
-                }
-            }
 
             // Untainted object parameter -> can resolve to a value
-            if (property.isTainted) { // UNTAINTED[TAINTED]
-                return {
-                    node: member_expr,
-                    isTainted: true
+            if (node.computed) { // a['a' + 'b']
+                const property = this.eval(node.property, ctx) as TaintedLiteral;
+                const member_expr: t.MemberExpression = this.format_member_expression(node, property);
+
+                // Tainted object parameter -> cannot resolve
+                if (object.isTainted) {
+                    return {
+                        node: member_expr,
+                        isTainted: true
+                    }
                 }
-            } else { // UNTAINTED[UNTAINTED] -> Value!
-                const value = (object.value)[property.value] as TaintedLiteral;
+
+                if (property.isTainted) { // UNTAINTED[TAINTED]
+                    return {
+                        node: member_expr,
+                        isTainted: true
+                    }
+                } else { // UNTAINTED[UNTAINTED] -> Value!
+                    const value = (object.value)[property.value] as TaintedLiteral;
+                    return value;
+                }
+            } else { // // UNTAINTED.IDENTIFIER -> Value!
+                const property = (node.property as t.Identifier)
+
+                // Tainted object parameter -> cannot resolve
+                if (object.isTainted) {
+                    const member_expr = t.memberExpression(
+                        node.object as t.Identifier, // Should ALWAYS be an identifier node
+                        t.identifier(property.name),
+                        false
+                    )
+                    return {
+                        node: member_expr,
+                        isTainted: true
+                    }
+                }
+
+                // Not tainted -> Resolve
+
+                const value = (object.value)[property.name] as TaintedLiteral;
                 return value;
             }
+        }
+
+        if (t.isObjectExpression(node)) {
+            const obj = {};
+            let properties: Array<t.ObjectMethod | t.ObjectProperty | t.SpreadElement> = [];
+            for (const property of node.properties) {
+                if (t.isObjectProperty(property)) {
+                    const value = this.eval(property.value, ctx) as TaintedLiteral;
+
+                    if (property.computed) { // { [a]: 2 } - `a` must be computed
+                        const key = this.eval(property.key, ctx) as TaintedLiteral;
+                        if (key.isTainted) { // No object added to obj; uncomputed key added to properties
+                            properties.push(t.objectProperty(
+                                get_repr(key),           // Key
+                                get_repr(value),         // value
+                                true,                    // computed
+                                false                    // shorthand
+                            ));
+                        } else { // Key is replaced with value and added to obj & properties
+                            properties.push(t.objectProperty(
+                                get_repr(key),           // Key
+                                get_repr(value),         // value
+                                false,                    // computed
+                                false                    // shorthand
+                            ));
+
+                            Object.defineProperty(
+                                obj,
+                                key.value,
+                                { value }
+                            );
+                        }
+                    }
+                    else {
+                        // { x } -> { x: x }; We strip off the shorthand if present
+                        // { x: y }
+                        const key = (property.key as t.Identifier)
+                        properties.push(t.objectProperty(
+                            key,                     // key
+                            get_repr(value),         // value
+                            false,                   // computed
+                            false                    // shorthand
+                        ));
+
+                        Object.defineProperty(
+                            obj,
+                            key.name,
+                            { value }
+                        );
+                    }
+                } else if (t.isObjectMethod(property)) {
+                    throw new NotImplementedException("ObjectMethod has not been implemented into ObjectExpression");
+                } else if (t.isSpreadElement(property)) {
+                    throw new NotImplementedException("SpreadElement has not been implemented into ObjectExpression");
+                }
+            }
+
+            const obj_expr_node = t.objectExpression(
+                properties
+            )
+
+            return {
+                node: obj_expr_node,
+                value: obj,
+                isTainted: false
+            };
         }
 
         
