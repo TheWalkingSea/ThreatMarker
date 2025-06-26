@@ -3,7 +3,7 @@ import * as t from '@babel/types';
 
 export function Value(value: any): t.Literal | t.Expression {
     if (typeof value === 'string') {
-        return t.stringLiteral(value);  // Create a numeric literal
+        return t.stringLiteral(value);  // Create a string literal
     } else if (typeof value === 'number') {
         return t.numericLiteral(value);  // Create a numeric literal
     } else if (typeof value === 'boolean') {
