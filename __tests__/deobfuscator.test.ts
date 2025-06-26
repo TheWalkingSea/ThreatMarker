@@ -131,3 +131,6 @@ describe("Member Expression", () => {
     test('Untainted Tainted Array', test_ast('MemberExpression/untainted_tainted'));
     test('Untainted Untainted Array', test_ast('MemberExpression/untainted_untainted'));
 });
+describe("ObjectExpression", () => {
+    test('Initialization', test_ast('ObjectExpression/init'));
+});
