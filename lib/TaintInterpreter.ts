@@ -210,6 +210,12 @@ export class TaintInterpreter {
         }
 
         if (t.isIdentifier(node)) {
+            // `undefined` is classified as an identifier
+            if (node.name === 'undefined') return {
+                value: undefined,
+                isTainted: false
+            };
+
             // Return the identifier, if it is not defined then assume it is tainted
             try {
                 let val: TaintedLiteral = ctx.environment.resolve(node.name);
@@ -1461,7 +1467,6 @@ export class TaintInterpreter {
                 isTainted: false
             };
         }
-
         
         throw new NotImplementedException(node.type)
     }
