@@ -970,7 +970,7 @@ export class TaintInterpreter {
                 node.params,
                 body
             )
-            return name ? self.append_ast(func_decl) : func_decl
+            return name ? self.append_ast(func_decl) : func_decl;
         }
 
         // Note: Attempt to simplify arguments
@@ -1403,8 +1403,8 @@ export class TaintInterpreter {
         }
 
         if (t.isObjectExpression(node)) {
-            const obj = {};
-            let properties: Array<t.ObjectMethod | t.ObjectProperty | t.SpreadElement> = [];
+            const obj = {}; // The literal representation
+            let properties: Array<t.ObjectMethod | t.ObjectProperty | t.SpreadElement> = []; // The AST representation
             for (const property of node.properties) {
                 if (t.isObjectProperty(property)) {
                     const value = this.eval(property.value, ctx) as TaintedLiteral;
@@ -1451,7 +1451,55 @@ export class TaintInterpreter {
                         );
                     }
                 } else if (t.isObjectMethod(property)) {
-                    throw new NotImplementedException("ObjectMethod has not been implemented into ObjectExpression");
+                    let name;
+                    if (property.computed) {
+                        const key = this.eval(property.key, ctx) as TaintedLiteral;                      
+                        if (key.isTainted) { // No object added to obj; uncomputed key added to properties
+                                properties.push(t.objectMethod(
+                                    property.kind,           // Kind
+                                    get_repr(key),           // Key
+                                    get_repr(value),         // value
+                                    true,                    // computed
+                                    false                    // shorthand
+                                ));
+                        } else { // Key is replaced with value and added to obj & properties
+                            properties.push(t.objectMethod(
+                                property.kind,           // Kind
+                                get_repr(key),           // Key
+                                get_repr(value),         // value
+                                false,                   // computed
+                                false                    // shorthand
+                            ));
+
+                            Object.defineProperty(
+                                obj,
+                                key.value,
+                                { value }
+                            );
+                        }
+                    } else { // Not computed
+                        const key = (property.key as t.Identifier)
+                        properties.push(t.objectMethod(
+                            property.kind,           // Kind
+                            key,                     // key
+                            get_repr(value),         // value
+                            false,                   // computed
+                            false                    // shorthand
+                        ));
+
+                        Object.defineProperty(
+                            obj,
+                            key.name,
+                            { value }
+                        );
+                    }
+
+
+                    const func_expr = t.functionExpression(
+                        property.key, 
+                        property.params, 
+                        property.body
+                    );
                 } else if (t.isSpreadElement(property)) {
                     throw new NotImplementedException("SpreadElement has not been implemented into ObjectExpression");
                 }

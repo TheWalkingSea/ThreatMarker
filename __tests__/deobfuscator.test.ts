@@ -59,6 +59,7 @@ test('LogicalExpression', test_ast('logical_exp'));
 test('AssignmentExpression', test_ast('assignment_exp'))
 test('EmptyExpression', test_ast('empty_exp'))
 test('BlockStatement', test_ast('block_stmt'))
+test('Nullish Coalescing', test_ast('nullish_coalescing'))
 describe("IfStatement", () => {
     test('Untainted Condition (true) - IfStatement Replacement', test_ast('IfStatement/untaint_true'));
     test('Untainted Condition (false)', test_ast('IfStatement/untaint_false'));
@@ -130,7 +131,11 @@ describe("Member Expression", () => {
     test('Tainted Untainted Array', test_ast('MemberExpression/tainted_untainted'));
     test('Untainted Tainted Array', test_ast('MemberExpression/untainted_tainted'));
     test('Untainted Untainted Array', test_ast('MemberExpression/untainted_untainted'));
+    test('Chaining', test_ast('MemberExpression/chaining'));
+    test('Optional Chaining', test_ast('MemberExpression/optional_chaining'));
 });
 describe("ObjectExpression", () => {
-    test('Initialization', test_ast('ObjectExpression/init'));
+    test('Initialization Property Definition', test_ast('ObjectExpression/init_property'));
+    test('Initialization Method Definition', test_ast('ObjectExpression/init_method'));
+    test('Initialization Spread Operator', test_ast('ObjectExpression/init_spread'));
 });
