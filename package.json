@@ -2,10 +2,10 @@
   "name": "research",
   "version": "1.0.0",
   "description": "",
-  "type": "commonjs",
+  "type": "module",
   "main": "tracer.js",
   "scripts": {
-    "test": "jest",
+    "test": "jest ",
     "trace": "tsx tracer.ts"
   },
   "repository": {
@@ -21,6 +21,7 @@
   "devDependencies": {
     "@babel/preset-typescript": "^7.25.7",
     "@babel/types": "^7.25.7",
+    "@hediet/debug-visualizer-data-extraction": "^0.14.0",
     "@types/jest": "^29.5.13",
     "jest": "^29.7.0",
     "ts-jest": "^29.2.5",
