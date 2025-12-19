@@ -26,7 +26,7 @@ function test_ast(file: string): jest.ProvidesCallback {
 
         let ti = new TaintInterpreter(globalCtx);
         
-        ti.eval(input_ast.program);
+        ti.eval(input_ast.program, globalCtx);
         
         console.log('converting to ast...');
 
