@@ -503,6 +503,11 @@ export class TaintInterpreter {
          *     argument: Expression,
          *     prefix: boolean
          * }
+         * 
+         * Note: 
+         *  - `break` not implemented
+         *  - `void` ALWAYS returns 'undefined', even when tainted.
+         *      However, it is not currently implemented (requires node/value superposition) since argument is an Expression
          */
         if (t.isUnaryExpression(node)) {
             // If the operand is tainted, return taint
