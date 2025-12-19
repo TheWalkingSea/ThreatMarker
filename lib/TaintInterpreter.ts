@@ -184,22 +184,48 @@ export class TaintInterpreter {
          *
          * type Literal = StringLiteral | NumericLiteral | NullLiteral | BooleanLiteral | 
          *                RegExpLiteral | TemplateLiteral | BigIntLiteral | DecimalLiteral;
+         * 
+         * Note: DecimalLiteral not native JS; TemplateLiteral not implemented
         */
         if (t.isLiteral(node)) {
             // Literals are constant, and therefore not tainted
 
             if (t.isNullLiteral(node)) {
-              return {
-                value: null,
-                isTainted: false
-              };
+                return {
+                    value: null,
+                    isTainted: false
+                };
             }
             if (t.isRegExpLiteral(node)) {
-              return {
-                value: new RegExp(node.pattern, node.flags),
-                isTainted: false
+                return {
+                    value: new RegExp(node.pattern, node.flags),
+                    isTainted: false
                 }
             }
+            if (t.isBigIntLiteral(node)) {
+                return {
+                    value: BigInt(node.value),
+                    isTainted: false
+                }
+            }
+            // if (t.isTemplateLiteral(node)) {
+            //     let value = "";
+            //     let isTainted = false;
+            //     for (let i = 0; i < node.quasis.length; i++) {
+            //         value += node.quasis[i].value.raw;
+                    
+            //         const expr_tl = this.eval(node.expressions[i], ctx) as TaintedLiteral;
+            //         if (expr_tl.isTainted) {
+            //             isTainted = true;
+            //             value += "${" 
+            //         }
+            //         value += expr_tl;
+            //     }
+            //     return {
+            //         value: value,
+            //         isTainted: isTainted
+            //     }
+            // }
 
             return {
                 // @ts-ignore
@@ -476,6 +502,7 @@ export class TaintInterpreter {
         if (t.isSequenceExpression(node)) {
             // Just executes every expression, if the last expression is tainted, return taint - Implicitly tainted
             let expressions: Array<t.Expression> = [];
+            let ret_value; // The final result
             node.expressions.forEach((expression, index) => {
                 let expr_tl = this.eval(expression, ctx) as TaintedLiteral;
                 expressions.push(
@@ -485,7 +512,7 @@ export class TaintInterpreter {
                 // Last element -> return
                 if (index == (node.expressions.length - 1)) {
                     const seq_expr = t.sequenceExpression(expressions)
-                    return {
+                    ret_value = {
                         value: expr_tl.value,
                         node: seq_expr,
                         isTainted: expr_tl.isTainted
@@ -493,8 +520,8 @@ export class TaintInterpreter {
                 }
             });
 
-            // Return void; unreachable statement
-            return;
+            // We return here since return in a forEach does not return from main scope
+            return ret_value;
         }
 
         /**
@@ -620,8 +647,6 @@ export class TaintInterpreter {
         
         // if (t.isSwitchStatement(node)) {
         //     let expression = this.eval(node.discriminant, ctx);
-
-
         // }
 
         /**
