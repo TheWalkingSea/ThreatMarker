@@ -221,7 +221,7 @@ export class TaintInterpreter {
             if (["let", "const", "using", "await using"].includes(node.type)) {
                 throw new NotImplementedException(`Variable Declaration '${node.type}' has not been implemented yet`);
             }
-            
+
             let declarations: Array<t.VariableDeclarator> = [];
             node.declarations.forEach((declaration) => {
                 declarations.push(
@@ -240,8 +240,13 @@ export class TaintInterpreter {
          * 
          * type LVal = ArrayPattern | AssignmentPattern | Identifier | MemberExpression | ObjectPattern | RestElement | TSAsExpression | 
          *  TSNonNullExpression | TSParameterProperty | TSSatisfiesExpression | TSTypeAssertion;
+         *  - Note: Any types with the prefix `TS` is for the TypeScript language ONLY and should be ignored for web-based applications
          */
         if (t.isVariableDeclarator(node)) {
+            if (["MemberExpression", "ArrayPattern", "ObjectPattern", "RestElement", "AssignmentPattern"].includes(node.type)) {
+                throw new NotImplementedException(`Variable Declarator '${node.type}' has not been implemented.`);
+            }
+
             // If the right side is tainted, make this variable tainted - Implicitly tainted
             let id = (node.id as t.Identifier).name
 
