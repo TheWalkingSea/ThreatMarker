@@ -566,9 +566,9 @@ export class TaintInterpreter {
          *     argument: Expression,
          *     prefix: boolean
          * }
+         * 
+         * Note: Only Identifier implemented
          */
-        // TODO
-        // Simplify left hand argument
         if (t.isUpdateExpression(node)) {
             if (t.isIdentifier(node.argument)) {
                 let operand = node.argument.name;
