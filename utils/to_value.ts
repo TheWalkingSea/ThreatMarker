@@ -16,6 +16,8 @@ export function Value(value: any): t.Literal | t.Expression {
         return t.arrayExpression(
             value.map((x: TaintedLiteral) => get_repr(x))
         );
+    } else if (typeof value == 'bigint') {
+        return t.bigIntLiteral(value.toString());
     } else {
         console.debug(value);
         console.debug(typeof value);
