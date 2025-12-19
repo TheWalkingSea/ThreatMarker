@@ -279,6 +279,8 @@ export class TaintInterpreter {
          *     optional?: boolean | null,
          *     typeAnnotation?: TypeAnnotation | TSTypeAnnotation | Noop | null
          * }
+         * 
+         * Note: optional, TypeAnnotation, TSTypeAnnotation, Noop, decorators not used in native JS
          */
         if (t.isIdentifier(node)) {
             // `undefined` is classified as an identifier
