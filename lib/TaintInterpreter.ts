@@ -35,7 +35,7 @@ export class TaintInterpreter {
      * @param {t.Node} stmt - The node being appended/returned
      * @returns {void | t.Node} - void if appended to AST; returns the node instead if return_stmt_flag is set
      */
-    append_ast(stmt: t.Node): void | t.Node {
+    private append_ast(stmt: t.Node): void | t.Node {
         if (this.return_stmt_flag) return stmt;
 
         this.ast.push(stmt);
@@ -49,7 +49,7 @@ export class TaintInterpreter {
      * @param {...Parameters<T>} args - The arguments to pass into the wrapped function
      * @returns {ReturnType<T>} - Returns the result from the function
      */
-    get_stmt_wrapper<T extends (...args: any[]) => any>(fn: T, ...args: Parameters<T>): ReturnType<T> {
+    private get_stmt_wrapper<T extends (...args: any[]) => any>(fn: T, ...args: Parameters<T>): ReturnType<T> {
         const initial_return_stmt_flag = this.return_stmt_flag;
         this.return_stmt_flag = true;
         const result = fn.bind(this)(...args);
@@ -69,7 +69,7 @@ export class TaintInterpreter {
      * @param {string} param.name - Metainformation used primarily for labelling; implemented for support purposes
      * @returns {t.BlockStatement | t.ExpressionStatement} - Returns the simplified ambiguous BlockStatement
      */
-    simplify_ambiguous_flow(block: t.BlockStatement, ctx: ExecutionContext, { type, name }: { type?: string, name?: string } = {}): t.BlockStatement | t.ExpressionStatement | null {
+    private simplify_ambiguous_flow(block: t.BlockStatement, ctx: ExecutionContext, { type, name }: { type?: string, name?: string } = {}): t.BlockStatement | t.ExpressionStatement | null {
         
         if (!block) return null;
 
@@ -91,7 +91,7 @@ export class TaintInterpreter {
         if (this.callstack[this.callstack.length - 1] === isolatedCtx) this.callstack.pop(); // Remove isolatedEnv
 
         // Any variables defined in the inner block are tainted in outer scope
-        isolatedCtx.environment.record.forEach((value: TaintedLiteral, key: string, _) => {
+        isolatedCtx.environment.getLocalRecord().forEach((value: TaintedLiteral, key: string, _) => {
             // Due to the assumption all definitions use var, all variables defined in the inner block will leak into the outer block
             
             ctx.environment.declare(key);
@@ -109,7 +109,7 @@ export class TaintInterpreter {
      * @param {TaintedLiteral} property - The evaluated property (OBJECT[PROPERTY])
      * @returns {t.MemberExpression} - Returns a formatted MemberExpression
      */
-    format_member_expression(member_node: t.MemberExpression, property: TaintedLiteral): t.MemberExpression {
+    private format_member_expression(member_node: t.MemberExpression, property: TaintedLiteral): t.MemberExpression {
         if (!property.isTainted && t.isValidIdentifier(property.value)) {
                 return t.memberExpression(
                     member_node.object as t.Identifier, // Should ALWAYS be an identifier node
@@ -126,12 +126,12 @@ export class TaintInterpreter {
     }
 
     /** 
-     * Evaluates a node recursively
+     * Evaluates a node recursively; main entry point of the TaintInterpreter
      * @param {t.Node} node - The node being executed
      * @param {ExecutionContext} ctx - The context in which the node is being executed in
      * @returns {TaintedLiteral | void} - Returns a TaintedLiteral most the time, void when at the bottom of the tree. t.Node is to prevent type errors but will never be type t.Node
      */
-    eval(node: t.Node, ctx: ExecutionContext = this.callstack[this.callstack.length - 1]): t.Node | TaintedLiteral | void  {
+    public eval(node: t.Node, ctx: ExecutionContext): t.Node | TaintedLiteral | void  {
         if (t.isProgram(node)) {
             node.body.forEach((node) => {
                 this.eval(node, ctx);
@@ -1295,7 +1295,9 @@ export class TaintInterpreter {
 
                 test = this.eval(node.test, ctx) as TaintedLiteral; // Re-evaluate test
             }
-            this.callstack.pop();
+            if (this.callstack.pop() !== exec_ctx_1) {
+                throw new Error("Unexpected WhileLoop stack call popped.");
+            }
 
             // Tainted While Loop
             if (test.isTainted || exec_ctx_1.environment.is_tainted()) {
@@ -1305,15 +1307,28 @@ export class TaintInterpreter {
 
                 this.callstack.push(exec_ctx);
 
-                // Run block in isolation
-                const initial_return_stmt_flag = this.return_stmt_flag;
-                this.return_stmt_flag = true; // returns the block instead of result
-                this.eval(node.body, exec_ctx) as t.BlockStatement;
+                // Run block in isolation until the function is idempotent
+                // This is because a variable may be write-tainted when referenced previously (and not tainted previously)
+                let body: t.BlockStatement;
+                let test_stmt: TaintedLiteral;
+                while (true) {
+                
+                    const initial_return_stmt_flag = this.return_stmt_flag;
+                    this.return_stmt_flag = true; // returns the block instead of result
 
-                const body = this.eval(node.body, exec_ctx) as t.BlockStatement;
-                this.return_stmt_flag = initial_return_stmt_flag;
+                    const newbody = this.eval(node.body, exec_ctx) as t.BlockStatement;
+                    this.return_stmt_flag = initial_return_stmt_flag;
 
-                const test_stmt = this.eval(node.test, exec_ctx) as TaintedLiteral;
+                    const new_test_stmt = this.eval(node.test, exec_ctx) as TaintedLiteral;
+
+                    // Check idempotency
+                    // @ts-ignore
+                    if (body && test_stmt && t.isNodesEquivalent(body, newbody) && t.isNodesEquivalent(test_stmt.node, new_test_stmt.node)) {
+                        break;
+                    }
+                    body = newbody;
+                    test_stmt = new_test_stmt;
+                }
 
                 // Remove ExecutionContext
                 this.callstack.pop();
@@ -1326,6 +1341,7 @@ export class TaintInterpreter {
                 return this.append_ast(while_stmt);
             }
 
+            // Not tainted
             const encapsulated_blocks = t.blockStatement(block_stmts);
             return this.append_ast(encapsulated_blocks);
         }
@@ -1402,119 +1418,119 @@ export class TaintInterpreter {
             }
         }
 
-        if (t.isObjectExpression(node)) {
-            const obj = {}; // The literal representation
-            let properties: Array<t.ObjectMethod | t.ObjectProperty | t.SpreadElement> = []; // The AST representation
-            for (const property of node.properties) {
-                if (t.isObjectProperty(property)) {
-                    const value = this.eval(property.value, ctx) as TaintedLiteral;
+        // if (t.isObjectExpression(node)) {
+        //     const obj = {}; // The literal representation
+        //     let properties: Array<t.ObjectMethod | t.ObjectProperty | t.SpreadElement> = []; // The AST representation
+        //     for (const property of node.properties) {
+        //         if (t.isObjectProperty(property)) {
+        //             const value = this.eval(property.value, ctx) as TaintedLiteral;
 
-                    if (property.computed) { // { [a]: 2 } - `a` must be computed
-                        const key = this.eval(property.key, ctx) as TaintedLiteral;
-                        if (key.isTainted) { // No object added to obj; uncomputed key added to properties
-                            properties.push(t.objectProperty(
-                                get_repr(key),           // Key
-                                get_repr(value),         // value
-                                true,                    // computed
-                                false                    // shorthand
-                            ));
-                        } else { // Key is replaced with value and added to obj & properties
-                            properties.push(t.objectProperty(
-                                get_repr(key),           // Key
-                                get_repr(value),         // value
-                                false,                    // computed
-                                false                    // shorthand
-                            ));
+        //             if (property.computed) { // { [a]: 2 } - `a` must be computed
+        //                 const key = this.eval(property.key, ctx) as TaintedLiteral;
+        //                 if (key.isTainted) { // No object added to obj; uncomputed key added to properties
+        //                     properties.push(t.objectProperty(
+        //                         get_repr(key),           // Key
+        //                         get_repr(value),         // value
+        //                         true,                    // computed
+        //                         false                    // shorthand
+        //                     ));
+        //                 } else { // Key is replaced with value and added to obj & properties
+        //                     properties.push(t.objectProperty(
+        //                         get_repr(key),           // Key
+        //                         get_repr(value),         // value
+        //                         false,                    // computed
+        //                         false                    // shorthand
+        //                     ));
 
-                            Object.defineProperty(
-                                obj,
-                                key.value,
-                                { value }
-                            );
-                        }
-                    }
-                    else {
-                        // { x } -> { x: x }; We strip off the shorthand if present
-                        // { x: y }
-                        const key = (property.key as t.Identifier)
-                        properties.push(t.objectProperty(
-                            key,                     // key
-                            get_repr(value),         // value
-                            false,                   // computed
-                            false                    // shorthand
-                        ));
+        //                     Object.defineProperty(
+        //                         obj,
+        //                         key.value,
+        //                         { value }
+        //                     );
+        //                 }
+        //             }
+        //             else {
+        //                 // { x } -> { x: x }; We strip off the shorthand if present
+        //                 // { x: y }
+        //                 const key = (property.key as t.Identifier)
+        //                 properties.push(t.objectProperty(
+        //                     key,                     // key
+        //                     get_repr(value),         // value
+        //                     false,                   // computed
+        //                     false                    // shorthand
+        //                 ));
 
-                        Object.defineProperty(
-                            obj,
-                            key.name,
-                            { value }
-                        );
-                    }
-                } else if (t.isObjectMethod(property)) {
-                    let name;
-                    if (property.computed) {
-                        const key = this.eval(property.key, ctx) as TaintedLiteral;                      
-                        if (key.isTainted) { // No object added to obj; uncomputed key added to properties
-                                properties.push(t.objectMethod(
-                                    property.kind,           // Kind
-                                    get_repr(key),           // Key
-                                    get_repr(value),         // value
-                                    true,                    // computed
-                                    false                    // shorthand
-                                ));
-                        } else { // Key is replaced with value and added to obj & properties
-                            properties.push(t.objectMethod(
-                                property.kind,           // Kind
-                                get_repr(key),           // Key
-                                get_repr(value),         // value
-                                false,                   // computed
-                                false                    // shorthand
-                            ));
+        //                 Object.defineProperty(
+        //                     obj,
+        //                     key.name,
+        //                     { value }
+        //                 );
+        //             }
+        //         } else if (t.isObjectMethod(property)) {
+        //             let name;
+        //             if (property.computed) {
+        //                 const key = this.eval(property.key, ctx) as TaintedLiteral;                      
+        //                 if (key.isTainted) { // No object added to obj; uncomputed key added to properties
+        //                         properties.push(t.objectMethod(
+        //                             property.kind,           // Kind
+        //                             get_repr(key),           // Key
+        //                             get_repr(value),         // value
+        //                             true,                    // computed
+        //                             false                    // shorthand
+        //                         ));
+        //                 } else { // Key is replaced with value and added to obj & properties
+        //                     properties.push(t.objectMethod(
+        //                         property.kind,           // Kind
+        //                         get_repr(key),           // Key
+        //                         get_repr(value),         // value
+        //                         false,                   // computed
+        //                         false                    // shorthand
+        //                     ));
 
-                            Object.defineProperty(
-                                obj,
-                                key.value,
-                                { value }
-                            );
-                        }
-                    } else { // Not computed
-                        const key = (property.key as t.Identifier)
-                        properties.push(t.objectMethod(
-                            property.kind,           // Kind
-                            key,                     // key
-                            get_repr(value),         // value
-                            false,                   // computed
-                            false                    // shorthand
-                        ));
+        //                     Object.defineProperty(
+        //                         obj,
+        //                         key.value,
+        //                         { value }
+        //                     );
+        //                 }
+        //             } else { // Not computed
+        //                 const key = (property.key as t.Identifier)
+        //                 properties.push(t.objectMethod(
+        //                     property.kind,           // Kind
+        //                     key,                     // key
+        //                     get_repr(value),         // value
+        //                     false,                   // computed
+        //                     false                    // shorthand
+        //                 ));
 
-                        Object.defineProperty(
-                            obj,
-                            key.name,
-                            { value }
-                        );
-                    }
+        //                 Object.defineProperty(
+        //                     obj,
+        //                     key.name,
+        //                     { value }
+        //                 );
+        //             }
 
 
-                    const func_expr = t.functionExpression(
-                        property.key, 
-                        property.params, 
-                        property.body
-                    );
-                } else if (t.isSpreadElement(property)) {
-                    throw new NotImplementedException("SpreadElement has not been implemented into ObjectExpression");
-                }
-            }
+        //             const func_expr = t.functionExpression(
+        //                 property.key, 
+        //                 property.params, 
+        //                 property.body
+        //             );
+        //         } else if (t.isSpreadElement(property)) {
+        //             throw new NotImplementedException("SpreadElement has not been implemented into ObjectExpression");
+        //         }
+        //     }
 
-            const obj_expr_node = t.objectExpression(
-                properties
-            )
+        //     const obj_expr_node = t.objectExpression(
+        //         properties
+        //     )
 
-            return {
-                node: obj_expr_node,
-                value: obj,
-                isTainted: false
-            };
-        }
+        //     return {
+        //         node: obj_expr_node,
+        //         value: obj,
+        //         isTainted: false
+        //     };
+        // }
         
         throw new NotImplementedException(node.type)
     }
