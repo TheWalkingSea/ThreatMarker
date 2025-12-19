@@ -3,11 +3,11 @@ import { DeclarationException } from "./DeclarationException";
 import * as t from '@babel/types';
 export class Environment {
 
-    record: Map<string, TaintedLiteral>;
-    parent: Environment | null;
-    taint_parent_writes: boolean;
-    taint_parent_reads: boolean;
-    ignore_reference_exception: boolean
+    private record: Map<string, TaintedLiteral>;
+    private parent: Environment | null;
+    private taint_parent_writes: boolean;
+    private taint_parent_reads: boolean;
+    private ignore_reference_exception: boolean
 
     constructor(
         record = new Map(), 
@@ -21,6 +21,10 @@ export class Environment {
         this.taint_parent_writes = taint_parent_writes; // For tainted if blocks, any writes outside of block is auto tainted
         this.taint_parent_reads = taint_parent_reads; // For function blocks, any reads outside of Environment is auto tainted
         this.ignore_reference_exception = ignore_reference_exception; // For function blocks running in isolation, any parent references that are undefined are ignored
+    }
+
+    getLocalRecord(): Map<string, TaintedLiteral> {
+        return this.record;
     }
 
     is_tainted(): Boolean {
