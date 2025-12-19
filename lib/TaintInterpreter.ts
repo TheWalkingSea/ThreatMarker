@@ -314,6 +314,8 @@ export class TaintInterpreter {
          *     left: Expression | PrivateName,
          *     right: Expression
          * }
+         * 
+         * Note: `|>` is not a native JS operator
          */
         if (t.isBinaryExpression(node)) {
             // If left or right side of expression is tainted, make the entire expression tainted
@@ -397,6 +399,10 @@ export class TaintInterpreter {
                 case '<=':
                     value = left <= right;
                     break;
+                case 'instanceof':
+                    value = left instanceof right;
+                case 'in':
+                    value = left in right;
                 default:
                     throw new NotImplementedException(node.operator);
             }
