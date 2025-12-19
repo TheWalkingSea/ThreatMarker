@@ -218,6 +218,10 @@ export class TaintInterpreter {
          */
         if (t.isVariableDeclaration(node)) {
             // Loops through all declarations -> Reference VariableDeclarator
+            if (["let", "const", "using", "await using"].includes(node.type)) {
+                throw new NotImplementedException(`Variable Declaration '${node.type}' has not been implemented yet`);
+            }
+            
             let declarations: Array<t.VariableDeclarator> = [];
             node.declarations.forEach((declaration) => {
                 declarations.push(
@@ -545,38 +549,51 @@ export class TaintInterpreter {
         // TODO
         // Simplify left hand argument
         if (t.isUpdateExpression(node)) {
-            // If the operand is tainted, return taint
-            let operand = this.eval(node.argument, ctx) as TaintedLiteral;
+            if (t.isIdentifier(node.argument)) {
+                let operand = node.argument.name;
+                let operand_tl = ctx.environment.resolve(operand) as TaintedLiteral;
 
-            if (operand.isTainted) return {
-                node: t.updateExpression(
+                if (operand_tl.isTainted) {
+                    // Tainted operand -> Return tainted node
+                    return {
+                        node: t.updateExpression(
+                            node.operator,
+                            t.identifier(operand),
+                            node.prefix
+                        ),
+                        isTainted: true
+                    } // Taintness is inherited
+                }
+
+                // Update Step for untainted operands
+                let return_value;
+                let set_value;
+                if (node.operator === "++") {
+                    return_value = operand_tl.value + (node.prefix ? 1 : 0); // Add one if ++VAR
+                    set_value = operand_tl.value + 1;
+                } else if (node.operator === "--") {
+                    return_value = operand_tl.value - (node.prefix ? 1 : 0); // Subtract one if --VAR
+                    set_value = operand_tl.value - 1;
+                }
+
+                ctx.environment.assign(operand, {
+                    value: set_value,
+                    isTainted: false
+                });
+
+                const update_expr = t.updateExpression(
                     node.operator,
-                    get_repr(operand),
+                    node.argument,
                     node.prefix
-                ),
-                isTainted: true
-            } // Taintness is inherited
+                )
 
-            // Update Step
-            let value;
-            if (node.operator === "++") {
-                value = operand.value + (node.prefix ? 1 : 0); // Add one if ++VAR
-                operand.value += 1;
-            } else if (node.operator === "--") {
-                value = operand.value - (node.prefix ? 1 : 0); // Subtract one if --VAR
-                operand.value -= 1;
-            }
-
-            const update_expr = t.updateExpression(
-                node.operator,
-                node.argument,
-                node.prefix
-            )
-
-            return {
-                node: update_expr,
-                value: value,
-                isTainted: false
+                return {
+                    node: update_expr,
+                    value: return_value,
+                    isTainted: false
+                }
+            } else {
+                throw new NotImplementedException(`UpdateExpression has not been implemented for argument type '${node.argument.type}'`);
             }
         }
         
@@ -622,7 +639,7 @@ export class TaintInterpreter {
                     this.callstack.pop() // Remove isolatedEnv
 
                     // Any variables defined in the inner block are tainted in outer scope
-                    isolatedCtx.environment.record.forEach((value: TaintedLiteral, key: string, _) => {
+                    isolatedCtx.environment.getLocalRecord().forEach((value: TaintedLiteral, key: string, _) => {
                         // Due to the assumption all definitions use var, all variables defined in the inner block will leak into the outer block
                         
                         ctx.environment.declare(key);
@@ -1383,13 +1400,14 @@ export class TaintInterpreter {
          *     label?: Identifier | null
          * }
          */
+        // Note: Ensure `break_exec_ctx.environment.taint_parent_writes = true;` is correct and ....taint_parent_writes is idempotent
         if (t.isBreakStatement(node)) {
             const BREAKABLE_ENVIRONMENTS = ['ForInStatement', 'SwitchCase', 'SwitchStatement', 'ForStatement', 'DoWhileStatement', 'WhileStatement', 'LabeledStatement']
             
             // 1. Find loop's ExecutionContext being broken out of
             let label = node.label?.name;
             let break_exec_ctx: ExecutionContext | undefined;
-            for (let i=this.callstack.length-1;i>=0;i--) {
+            for (let i = this.callstack.length - 1; i >= 0; i--) {
                 if ((label && this.callstack[i]?.name === label) || (!label && BREAKABLE_ENVIRONMENTS.includes(this.callstack[i]?.type))) {
                     break_exec_ctx = this.callstack[i];
                     break;
