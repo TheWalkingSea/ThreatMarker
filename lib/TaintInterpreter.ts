@@ -476,22 +476,25 @@ export class TaintInterpreter {
         if (t.isSequenceExpression(node)) {
             // Just executes every expression, if the last expression is tainted, return taint - Implicitly tainted
             let expressions: Array<t.Expression> = [];
-            let finalValue;
             node.expressions.forEach((expression, index) => {
-                let value = this.eval(expression, ctx) as TaintedLiteral;
+                let expr_tl = this.eval(expression, ctx) as TaintedLiteral;
                 expressions.push(
-                    get_repr(value)
+                    get_repr(expr_tl)
                 )
 
                 // Last element -> return
                 if (index == (node.expressions.length - 1)) {
                     const seq_expr = t.sequenceExpression(expressions)
-                    value.node = seq_expr;
-                    finalValue = value;
+                    return {
+                        value: expr_tl.value,
+                        node: seq_expr,
+                        isTainted: expr_tl.isTainted
+                    };
                 }
             });
 
-            return finalValue;
+            // Return void; unreachable statement
+            return;
         }
 
         /**
