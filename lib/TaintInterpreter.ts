@@ -132,6 +132,15 @@ export class TaintInterpreter {
      * @returns {TaintedLiteral | void} - Returns a TaintedLiteral most the time, void when at the bottom of the tree. t.Node is to prevent type errors but will never be type t.Node
      */
     public eval(node: t.Node, ctx: ExecutionContext): t.Node | TaintedLiteral | void  {
+        
+        /**
+         * {
+         *    body: Statement[],
+         *    directives: Directive[],
+         *    sourceType: "script" | "module",
+         *    interpreter?: InterpreterDirective | null
+         * }
+         */
         if (t.isProgram(node)) {
             node.body.forEach((node) => {
                 this.eval(node, ctx);
@@ -140,6 +149,21 @@ export class TaintInterpreter {
             return;
         }
 
+        /**
+         * {
+         *     expression: Expression
+         * }
+         * 
+         * type Expression = ArrayExpression | AssignmentExpression | BinaryExpression | CallExpression | ConditionalExpression | 
+         *  FunctionExpression | Identifier | StringLiteral | NumericLiteral | NullLiteral | BooleanLiteral | RegExpLiteral | 
+         *  LogicalExpression | MemberExpression | NewExpression | ObjectExpression | SequenceExpression | ParenthesizedExpression | 
+         *  ThisExpression | UnaryExpression | UpdateExpression | ArrowFunctionExpression | ClassExpression | ImportExpression | 
+         *  MetaProperty | Super | TaggedTemplateExpression | TemplateLiteral | YieldExpression | AwaitExpression | Import | BigIntLiteral | 
+         *  OptionalMemberExpression | OptionalCallExpression | TypeCastExpression | JSXElement | JSXFragment | BindExpression | 
+         *  DoExpression | RecordExpression | TupleExpression | DecimalLiteral | ModuleExpression | TopicReference | PipelineTopicExpression | 
+         *  PipelineBareFunction | PipelinePrimaryTopicReference | TSInstantiationExpression | TSAsExpression | TSSatisfiesExpression | 
+         *  TSTypeAssertion | TSNonNullExpression;
+         */
         if (t.isExpressionStatement(node)) {
             let val = this.eval(node.expression, ctx) as TaintedLiteral;
             // if (val?.value) return; // Constant untainted variable => return
@@ -148,6 +172,19 @@ export class TaintInterpreter {
             return this.append_ast(expression);
         }
 
+        /**
+         * {
+         *     value: number,
+         *     raw: string,
+         *     regex ?: {
+         *         pattern: string,
+         *         flags: string
+         *     }
+         * }
+         *
+         * type Literal = StringLiteral | NumericLiteral | NullLiteral | BooleanLiteral | 
+         *                RegExpLiteral | TemplateLiteral | BigIntLiteral | DecimalLiteral;
+        */
         if (t.isLiteral(node)) {
             // Literals are constant, and therefore not tainted
 
@@ -172,6 +209,13 @@ export class TaintInterpreter {
             };
         }
 
+        /**
+         * {
+         *     kind: "var" | "let" | "const" | "using" | "await using",
+         *     declarations: Array<VariableDeclarator>,
+         *     declare?: boolean | null
+         * }
+         */
         if (t.isVariableDeclaration(node)) {
             // Loops through all declarations -> Reference VariableDeclarator
             let declarations: Array<t.VariableDeclarator> = [];
@@ -183,6 +227,16 @@ export class TaintInterpreter {
             return this.append_ast(t.variableDeclaration(node.kind, declarations)); // Add declarations to ast
         }
 
+        /**
+         * {
+         *     id: LVal,
+         *     init?: Expression | null,
+         *     definite?: boolean | null
+         * }
+         * 
+         * type LVal = ArrayPattern | AssignmentPattern | Identifier | MemberExpression | ObjectPattern | RestElement | TSAsExpression | 
+         *  TSNonNullExpression | TSParameterProperty | TSSatisfiesExpression | TSTypeAssertion;
+         */
         if (t.isVariableDeclarator(node)) {
             // If the right side is tainted, make this variable tainted - Implicitly tainted
             let id = (node.id as t.Identifier).name
@@ -209,6 +263,14 @@ export class TaintInterpreter {
             return t.variableDeclarator(t.identifier(id)); // No value, just return identifier
         }
 
+        /**
+         * {
+         *     name: string,
+         *     decorators?: Array<Decorator> | null,
+         *     optional?: boolean | null,
+         *     typeAnnotation?: TypeAnnotation | TSTypeAnnotation | Noop | null
+         * }
+         */
         if (t.isIdentifier(node)) {
             // `undefined` is classified as an identifier
             if (node.name === 'undefined') return {
@@ -235,6 +297,13 @@ export class TaintInterpreter {
             }
         }
 
+        /**
+         * {
+         *     operator: "+" | "-" | "/" | "%" | "*" | "**" | "&" | "|" | ">>" | ">>>" | "<<" | "^" | "==" | "===" | "!=" | "!==" | "in" | "instanceof" | ">" | "<" | ">=" | "<=" | "|>",
+         *     left: Expression | PrivateName,
+         *     right: Expression
+         * }
+         */
         if (t.isBinaryExpression(node)) {
             // If left or right side of expression is tainted, make the entire expression tainted
             let left_id = this.eval(node.left, ctx) as TaintedLiteral;
@@ -327,6 +396,13 @@ export class TaintInterpreter {
             }
         }
 
+        /**
+         * {
+         *     operator: "||" | "&&" | "??",
+         *     left: Expression,
+         *     right: Expression
+         * }
+         */
         if (t.isLogicalExpression(node)) {
             // If left or right side of expression is tainted, make the entire expression tainted
             let left_id = this.eval(node.left, ctx) as TaintedLiteral;
@@ -368,10 +444,18 @@ export class TaintInterpreter {
             }
         }
 
+        /**
+         * {}
+         */
         if (t.isEmptyStatement(node)) {
             return;
         }
 
+        /**
+         * {
+         *     expressions: Expression[]
+         * }
+         */
         if (t.isSequenceExpression(node)) {
             // Just executes every expression, if the last expression is tainted, return taint - Implicitly tainted
             let expressions: Array<t.Expression> = [];
@@ -393,6 +477,13 @@ export class TaintInterpreter {
             return finalValue;
         }
 
+        /**
+         * }
+         *     operator: "void" | "throw" | "delete" | "!" | "+" | "-" | "~" | "typeof",
+         *     argument: Expression,
+         *     prefix: boolean
+         * }
+         */
         if (t.isUnaryExpression(node)) {
             // If the operand is tainted, return taint
             const operand = this.eval(node.argument, ctx) as TaintedLiteral;
@@ -444,6 +535,13 @@ export class TaintInterpreter {
             }
         }
 
+        /**
+         * }
+         *     operator: "++" | "--",
+         *     argument: Expression,
+         *     prefix: boolean
+         * }
+         */
         // TODO
         // Simplify left hand argument
         if (t.isUpdateExpression(node)) {
@@ -488,6 +586,13 @@ export class TaintInterpreter {
 
         // }
 
+        /**
+         * {
+         *     test: Expression,
+         *     consequent: Expression,
+         *     alternate: Expression
+         * }
+         */
         if (t.isConditionalExpression(node)) {
             // AKA Ternary Expression; very similar to IfStatement but a value is returned!
             let test = this.eval(node.test, ctx) as TaintedLiteral;
@@ -552,6 +657,13 @@ export class TaintInterpreter {
             }
         }
 
+        /**
+         * {
+         *     test: Expression,
+         *     consequent: Statement,
+         *     alternate?: Statement | null
+         * }
+         */
         if (t.isIfStatement(node)) {
             // If the condition is tainted, run both blocks isolated & taint any variables written from outer scope
             // If the condition is not tainted, remove the redundant block
@@ -610,13 +722,19 @@ export class TaintInterpreter {
             }
         }
         
+        /**
+         * {
+         *     body: Statement[],
+         *     directives: Directive[]
+         * }
+         */
         // Critical Assumption: Code executed in a standard block does NOT create a new scope
         // Note: let, const, and function declarations are defined in the block-scope which does not follow the assumption
         if (t.isBlockStatement(node)) {
             let initial_return_stmt_flag = this.return_stmt_flag; // Temp store the return_stmt_flag
             this.return_stmt_flag = true;
             let block: Array<t.Statement> = [];
-            for (let i=0;i<node.body.length;i++) {
+            for (let i = 0;i < node.body.length; i++) {
                 let stmt = node.body[i];
 
                 let result;
@@ -645,6 +763,13 @@ export class TaintInterpreter {
             return this.append_ast(t.blockStatement(block));
         }
 
+        /**
+         * {
+         *     operator: string,
+         *     left: LVal | OptionalMemberExpression,
+         *     right: Expression
+         * }
+         */
         if (t.isAssignmentExpression(node)) {
             // If any operands are tainted, the assignment is also tainted
             let right_id = this.eval(node.right, ctx) as TaintedLiteral;
@@ -870,6 +995,19 @@ export class TaintInterpreter {
 
         // Function support
 
+        /**
+         * {
+         *     id?: Identifier | null,
+         *     params: Array<Identifier | Pattern | RestElement>,
+         *     body: BlockStatement,
+         *     generator: boolean,
+         *     async: boolean,
+         *     declare?: boolean | null,
+         *     predicate?: DeclaredPredicate | InferredPredicate | null,
+         *     returnType?: TypeAnnotation | TSTypeAnnotation | Noop | null,
+         *     typeParameters?: TypeParameterDeclaration | TSTypeParameterDeclaration | Noop | null
+         * }
+         */
         // TODO: 
         // Correct implementation of `this` object
         // arguments is a list of mixed Tainted and Untainted variables
@@ -973,6 +1111,15 @@ export class TaintInterpreter {
             return name ? self.append_ast(func_decl) : func_decl;
         }
 
+        /**
+         * {
+         *     callee: Expression | Super | V8IntrinsicIdentifier,
+         *     arguments: Array<Expression | SpreadElement | ArgumentPlaceholder>,
+         *     optional?: boolean | null,
+         *     typeArguments?: TypeParameterInstantiation | null,
+         *     typeParameters?: TSTypeParameterInstantiation | null
+         * }
+         */
         // Note: Attempt to simplify arguments
         if (t.isCallExpression(node)) {
             
@@ -1048,6 +1195,11 @@ export class TaintInterpreter {
 
         }
 
+        /**
+         * {
+         *     argument?: Expression | null
+         * }
+         */
         if (t.isReturnStatement(node)) {
             if (node.argument) this.returnValue = this.eval(node.argument, ctx) as TaintedLiteral;
             this.callstack.pop(); // Escape function
@@ -1060,10 +1212,19 @@ export class TaintInterpreter {
 
         // Error Support
 
+        /**
+         * {
+         *     block: BlockStatement,
+         *     handler?: {
+         *         param?: Identifier | ArrayPattern | ObjectPattern | null,
+         *         body: BlockStatement
+         *     },
+         *     finalizer?: BlockStatement | null
+         * }
+         */
         // Assumptions
         // Variables use `var` (function scope), whereas `let` would create a new environment in the try block
         // 
-        
         if (t.isTryStatement(node)) {
             let try_block, catch_block, finalizer_block;
 
@@ -1171,7 +1332,12 @@ export class TaintInterpreter {
         }
 
         // Jump Statements
-
+        /**
+         * {
+         *     label: Identifier,
+         *     body: Statement
+         * }
+         */
         if (t.isLabeledStatement(node)) {
             const label = node.label.name; // Label is always an identifier
 
@@ -1212,6 +1378,11 @@ export class TaintInterpreter {
         //     return ret;
         // }
 
+        /**
+         * {
+         *     label?: Identifier | null
+         * }
+         */
         if (t.isBreakStatement(node)) {
             const BREAKABLE_ENVIRONMENTS = ['ForInStatement', 'SwitchCase', 'SwitchStatement', 'ForStatement', 'DoWhileStatement', 'WhileStatement', 'LabeledStatement']
             
@@ -1267,7 +1438,12 @@ export class TaintInterpreter {
         }
 
         // Loops
-
+        /**
+         * {
+         *     test: Expression,
+         *     body: Statement
+         * }
+         */
         if (t.isWhileStatement(node)) {
             // Execute loop
             let test = this.eval(node.test, ctx) as TaintedLiteral;
@@ -1346,6 +1522,11 @@ export class TaintInterpreter {
             return this.append_ast(encapsulated_blocks);
         }
 
+        /**
+         * {
+         *     elements: Array<null | Expression | SpreadElement>
+         * }
+         */
         // TODO: Taint is NOT assumed for all lists, but is not always the case.
         if (t.isArrayExpression(node)) {
             let element_list: Array<TaintedLiteral> = [];
@@ -1370,6 +1551,14 @@ export class TaintInterpreter {
             }
         }
 
+        /**
+         * {
+         *     object: Expression | Super,
+         *     property: Expression | Identifier | PrivateName,
+         *     computed: boolean,
+         *     optional?: boolean | null
+         * }
+         */
         if (t.isMemberExpression(node)) {
             const object = this.eval(node.object, ctx) as TaintedLiteral;
 
