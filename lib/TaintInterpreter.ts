@@ -660,8 +660,11 @@ export class TaintInterpreter {
             // AKA Ternary Expression; very similar to IfStatement but a value is returned!
             let test = this.eval(node.test, ctx) as TaintedLiteral;
 
+            // Tainted!
             if (test.isTainted) { // All subsequent nodes are tainted
 
+                // Executor Function
+                // Very similar to IfStatement, but returns a value!
                 const execute_ternary = (expr: any): TaintedLiteral => {
 
                     let isolatedCtx = new ExecutionContext(
@@ -678,6 +681,7 @@ export class TaintInterpreter {
                         this.eval, expr, isolatedCtx
                         ) as TaintedLiteral;
 
+                    // Note: instanceof cannot be used since TaintedLiteral is an interface
                     if (ret && !('isTainted' in ret)) {
                         throw new DeobfuscatorException('TernaryExpression Evaluated to a value that is not type TaintLiteral');
                     }
@@ -698,6 +702,7 @@ export class TaintInterpreter {
                     return ret;
                 }
 
+                // Building the AST with the executor Function
                 let consequent = execute_ternary(node.consequent) as TaintedLiteral;
                 let alternate = execute_ternary(node.alternate) as TaintedLiteral;
 
@@ -709,7 +714,7 @@ export class TaintInterpreter {
                     ),
                     isTainted: true
                 }
-            } else { // Execute normally
+            } else { // Not tainted; Execute normally
                 let stmt = test.value ? node.consequent : node.alternate;
                 // Should add executed statement to AST
                 let exec_stmt = this.get_stmt_wrapper(
