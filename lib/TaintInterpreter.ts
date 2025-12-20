@@ -737,30 +737,37 @@ export class TaintInterpreter {
                 let consequent = this.simplify_ambiguous_flow(node.consequent as t.BlockStatement, ctx, { type: "IfStatement" }) as t.BlockStatement;
                 let alternate;
                 if (t.isIfStatement(node.alternate)) {
-                    // Since the else block is considered tainted, we need to execute the block as tainted.
+                    // All blocks contained in node.alternate must be executed in a tainted environment
 
                     let else_stmt = node.alternate as t.IfStatement;
+                    const else_test = this.eval(else_stmt.test, ctx) as TaintedLiteral
 
-                    alternate = this.get_stmt_wrapper(
-                        this.eval, t.ifStatement(
-                            get_repr(test), // Tainted! so this block will execute as tainted!
+                    if (else_test.isTainted) {
+                        // Case 1: Nested taint
+                        alternate = this.get_stmt_wrapper(this.eval, t.ifStatement(
+                            get_repr(else_test), // Tainted! so this block will execute as tainted!
                             else_stmt.consequent,
-                            else_stmt.alternate,
-                        ), ctx
-                    ) as t.IfStatement;
-
-                    // Since we overwrote the test to execute as tainted, we must revert the changes
-                    const else_stmt_test = this.eval(else_stmt.test, ctx) as TaintedLiteral
-                    alternate.test = else_stmt_test.node as t.Expression;
-
-                    // And if the else_stmt's test is untainted, we must handle that as well (just return the executed block)
-                    // Note: The block will still be treated as tainted
-                    if (!else_stmt_test.isTainted) {
-                        alternate = else_stmt_test.value ? else_stmt.consequent : else_stmt.alternate;
-                    } 
-
+                            else_stmt.alternate
+                        ), ctx) as t.IfStatement;
+                    } else {
+                        // Case 2: Alternate block is untainted, but environment is still tainted
+                        let alternate_block = else_test.value ? else_stmt.consequent : else_stmt.alternate;
+                        if (alternate_block) {
+                            alternate = this.simplify_ambiguous_flow(
+                                alternate_block as t.BlockStatement,
+                                ctx,
+                                { type: "IfStatement" }
+                            );
+                        } else {
+                            alternate = null;
+                        }
+                    }
                 } else if (t.isBlockStatement(node.alternate)) {
                     alternate = this.simplify_ambiguous_flow(node.alternate as t.BlockStatement, ctx, { type: "IfStatement" }); // Could be null
+                } else if (!node.alternate) {
+                    alternate = null;
+                } else {
+                    throw new NotImplementedException(`IfStatement.Alternate implementation for node type '${node.alternate?.type}' not implemented`);
                 }
 
                 return this.append_ast(
@@ -770,7 +777,7 @@ export class TaintInterpreter {
                         alternate
                     )
                 )
-            } else { // Execute normally
+            } else { // Not tainted: Execute normally
                 let block = test.value ? node.consequent : node.alternate;
                 if (block) {
                     // Should add executed statement to AST
