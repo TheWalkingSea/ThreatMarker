@@ -68,6 +68,7 @@ describe("IfStatement", () => {
     test('Tainted Condition - Block Simplification', test_ast('IfStatement/taint_int'));
     test('Nested Taint Condition', test_ast('IfStatement/nested_taint'));
     test('Taint -> Untainted Nested Conditional', test_ast('IfStatement/taint_untainted'));
+    test('Tainted -> Untainted Nested Conditional II', test_ast('IfStatement/taint_untainted_ii'));
 });
 describe("ConditionalExpression", () => {
     test('Tainted Test', test_ast('ConditionalExpression/tainted'));
