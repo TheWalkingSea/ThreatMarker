@@ -532,7 +532,7 @@ export class TaintInterpreter {
          * }
          * 
          * Note: 
-         *  - `break` not implemented
+         *  - `delete` not implemented
          *  - `void` ALWAYS returns 'undefined', even when tainted.
          *      However, it is not currently implemented (requires node/value superposition) since argument is an Expression
          */
@@ -702,7 +702,7 @@ export class TaintInterpreter {
                     return ret;
                 }
 
-                // Building the AST with the executor Function
+                // Building the AST with the Executor Function
                 let consequent = execute_ternary(node.consequent) as TaintedLiteral;
                 let alternate = execute_ternary(node.alternate) as TaintedLiteral;
 
