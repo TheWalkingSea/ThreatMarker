@@ -1111,7 +1111,8 @@ export class TaintInterpreter {
 
                 function arguments_wrapper(_: any) {return arguments;}
                 activation_record.set('arguments', {
-                    value: arguments_wrapper(args),
+                    // Ommit value of arguments if it is assumed to be tainted; reserved for future work
+                    // value: arguments_wrapper(args),
                     node: t.identifier('arguments'),
                     isTainted: true // Assume arguments are tainted
                 });
@@ -1120,7 +1121,7 @@ export class TaintInterpreter {
                 const env = new Environment(activation_record, parent_env, false, false);
 
                 // @ts-ignore - Ignore `this` error
-                const exec_ctx = new ExecutionContext(this, env, 'FunctionExpression'); // When executed, it will be in context of a FunctionExpression
+                const exec_ctx = new ExecutionContext(self, env, 'FunctionExpression'); // When executed, it will be in context of a FunctionExpression
                 self.callstack.push(exec_ctx);
 
                 self.returnValue = {
@@ -1137,7 +1138,7 @@ export class TaintInterpreter {
                 self.callstack.pop()
 
                 // @ts-ignore - Ignore `this` error
-                return new.target ? this : self.returnValue; // When ran with new, return this
+                return new.target ? self : self.returnValue; // When ran with new, return this
             }
             if (name) {
                 ctx.environment.declare(name);
