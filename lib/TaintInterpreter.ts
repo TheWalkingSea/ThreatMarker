@@ -427,8 +427,10 @@ export class TaintInterpreter {
                     break;
                 case 'instanceof':
                     value = left instanceof right;
+                    break;
                 case 'in':
                     value = left in right;
+                    break;
                 default:
                     throw new NotImplementedException(node.operator);
             }
