@@ -447,16 +447,75 @@ export class TaintInterpreter {
          * }
          */
         if (t.isLogicalExpression(node)) {
-            // If left or right side of expression is tainted, make the entire expression tainted
+            // Evaluate left operand first
             let left_id = this.eval(node.left, ctx) as TaintedLiteral;
+
+            // Short-circuit evaluation: If left is untainted and determines the result, don't evaluate right
+            if (!left_id.isTainted) {
+                let shouldShortCircuit = false;
+
+                switch (node.operator) {
+                    case '&&':
+                        // If left is falsy, result is left (don't evaluate right)
+                        shouldShortCircuit = !left_id.value;
+                        break;
+                    case '||':
+                        // If left is truthy, result is left (don't evaluate right)
+                        shouldShortCircuit = !!left_id.value;
+                        break;
+                    case '??':
+                        // If left is not null/undefined, result is left (don't evaluate right)
+                        shouldShortCircuit = left_id.value !== null && left_id.value !== undefined;
+                        break;
+                }
+
+                if (shouldShortCircuit) {
+                    // Return left value without evaluating right
+                    return {
+                        value: left_id.value,
+                        isTainted: false
+                    };
+                }
+            }
+
+            // Now evaluate right operand (either left is tainted, or short-circuit doesn't apply)
             let right_id = this.eval(node.right, ctx) as TaintedLiteral;
 
+            // Special case: If left is untainted and we know the result will be right (e.g., null ?? x, false && x, true || x didn't short-circuit means we continue)
+            // For ??: if left is null/undefined (untainted), result is definitely right
+            // For &&: if left is truthy (untainted), result is definitely right
+            // For ||: if left is falsy (untainted), result is definitely right
+            if (!left_id.isTainted) {
+                let rightDeterminesResult = false;
+
+                switch (node.operator) {
+                    case '&&':
+                        // Left is truthy, so result is right
+                        rightDeterminesResult = !!left_id.value;
+                        break;
+                    case '||':
+                        // Left is falsy, so result is right
+                        rightDeterminesResult = !left_id.value;
+                        break;
+                    case '??':
+                        // Left is null/undefined, so result is right
+                        rightDeterminesResult = left_id.value === null || left_id.value === undefined;
+                        break;
+                }
+
+                if (rightDeterminesResult) {
+                    // Result is definitely the right value, return it directly
+                    return right_id;
+                }
+            }
+
+            // Now, this is for the general case in which we do not consider short-circuits
             if (left_id.isTainted || right_id.isTainted) {
                 if (!left_id?.node && !right_id?.node) throw new DeobfuscatorException('left or right node in BinaryExpression is undefined despite being tainted');
                 return {
                     node: t.logicalExpression(
-                        node.operator, 
-                        get_repr(left_id), 
+                        node.operator,
+                        get_repr(left_id),
                         get_repr(right_id)
                     ),
                     isTainted: true
