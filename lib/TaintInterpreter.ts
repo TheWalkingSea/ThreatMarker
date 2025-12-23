@@ -701,6 +701,87 @@ export class TaintInterpreter {
                     value: return_value,
                     isTainted: false
                 }
+            } else if (t.isMemberExpression(node.argument)) {
+                // Handle member expression updates like arr[0]++ or obj.prop++
+                const member_node = node.argument as t.MemberExpression;
+
+                // Only support identifier objects (e.g., arr[0], not (foo())[0])
+                if (!t.isIdentifier(member_node.object)) {
+                    throw new NotImplementedException(`UpdateExpression for MemberExpression only supports Identifier objects, got '${member_node.object.type}'`);
+                }
+
+                const object = this.eval(member_node.object, ctx) as TaintedLiteral;
+                const property = member_node.computed
+                    ? this.eval(member_node.property, ctx) as TaintedLiteral
+                    : { value: (member_node.property as t.Identifier).name, isTainted: false };
+
+                const formatted_member_expr = this.format_member_expression(member_node, property);
+
+                // If object or property is tainted, return tainted node
+                if (object.isTainted || property.isTainted) {
+                    // If property is tainted, we can't determine which element to modify
+                    // so taint the entire object variable
+                    if (!object.isTainted && property.isTainted) {
+                        ctx.environment.setTaint(member_node.object.name, true);
+                    }
+
+                    return {
+                        node: t.updateExpression(
+                            node.operator,
+                            formatted_member_expr,
+                            node.prefix
+                        ),
+                        isTainted: true
+                    };
+                }
+
+                // Get current value
+                const current_value_tl = (object.value)[property.value] as TaintedLiteral;
+
+                // If current value is tainted, return tainted node
+                if (current_value_tl && current_value_tl.isTainted) {
+                    return {
+                        node: t.updateExpression(
+                            node.operator,
+                            formatted_member_expr,
+                            node.prefix
+                        ),
+                        isTainted: true
+                    };
+                }
+
+                // Calculate updated value
+                const current_value = current_value_tl ? current_value_tl.value : undefined;
+                let return_value;
+                let set_value;
+
+                if (node.operator === "++") {
+                    return_value = current_value + (node.prefix ? 1 : 0);
+                    set_value = current_value + 1;
+                } else if (node.operator === "--") {
+                    return_value = current_value - (node.prefix ? 1 : 0);
+                    set_value = current_value - 1;
+                }
+
+                // Use Environment's assignMemberProperty to handle taint_parent_writes
+                ctx.environment.assignMemberProperty(
+                    member_node.object.name,
+                    property.value,
+                    { value: set_value, isTainted: false },
+                    formatted_member_expr
+                );
+
+                const update_expr = t.updateExpression(
+                    node.operator,
+                    formatted_member_expr,
+                    node.prefix
+                )
+
+                return {
+                    node: update_expr,
+                    value: return_value,
+                    isTainted: false
+                }
             } else {
                 throw new NotImplementedException(`UpdateExpression has not been implemented for argument type '${node.argument.type}'`);
             }
