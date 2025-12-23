@@ -98,19 +98,10 @@ export class Environment {
         let env = this._resolve_parent(name); // Get the environment with the identifier defined
 
         let entry = env.record.get(name);
-        if (entry?.value) {
-            env.record.set(name, {
-                value: entry.value,
-                isTainted: isTainted
-            })
-        } else if (entry?.node) {
-            env.record.set(name, {
-                node: entry.node,
-                isTainted: isTainted
-            })
-        }
-
-        if (entry?.value && entry?.node) throw new Error(`value and node are both defined when trying to set taint ${name}`)        
+        env.record.set(name, {
+            node: entry?.node ? entry.node : t.identifier(name),
+            isTainted: isTainted
+        })
     }
 
     resolve(name: string): TaintedLiteral {
@@ -148,11 +139,35 @@ export class Environment {
                 });
                 return this;
             }
-            
+
             // error if special flag is not set
             throw new ReferenceException(name)
         } else { // If parent exists, try to resolve
             return this.parent._resolve_parent(name);
+        }
+    }
+
+    /**
+     * Assigns a value to a member expression property (e.g., obj[key] = value)
+     * Handles taint propagation for parent scope objects
+     * @param objectName - The name of the object variable
+     * @param propertyKey - The property key to assign
+     * @param value - The TaintedLiteral value to assign
+     * @param propertyNode - Optional node representation of the member expression
+     */
+    assignMemberProperty(objectName: string, propertyKey: any, value: TaintedLiteral, propertyNode?: t.Node): void {
+        let env = this._resolve_parent(objectName); // Get environment where object is defined
+        let object_tl = env.record.get(objectName) as TaintedLiteral;
+
+        // If taint_parent_writes is true and object is in parent scope, taint the property
+        if (this.taint_parent_writes && env !== this) {
+            (object_tl.value)[propertyKey] = {
+                node: propertyNode,
+                isTainted: true
+            };
+        } else {
+            // Normal assignment
+            (object_tl.value)[propertyKey] = value;
         }
     }
 
