@@ -6,3 +6,7 @@ a;
 b;
 c;
 d;
+
+
+var c = 0 ?? document;
+var d = null ?? document;

@@ -6,3 +6,6 @@ var d = 5;
 7;
 0;
 5;
+
+var c = 0;
+var d = document;

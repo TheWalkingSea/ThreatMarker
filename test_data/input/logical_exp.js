@@ -21,3 +21,10 @@ null ?? 2;
 2 ?? 3;
 
 2 ?? null;
+
+
+var a = false && document;
+var a2 = document && false;
+
+var b = true || document;
+var b2 = document || true;
