@@ -5,3 +5,6 @@ if (document) {
 }
 
 arr;
+arr[0];
+2;
+3;
