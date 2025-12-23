@@ -165,6 +165,12 @@ export class Environment {
                 node: propertyNode,
                 isTainted: true
             };
+            // Set node on object to prevent inlining when it contains tainted elements
+            env.record.set(objectName, {
+                node: t.identifier(objectName),
+                value: object_tl.value,
+                isTainted: false
+            });
         } else {
             // Normal assignment
             (object_tl.value)[propertyKey] = value;
