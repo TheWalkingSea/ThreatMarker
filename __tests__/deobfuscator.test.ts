@@ -133,6 +133,9 @@ describe("Member Expression", () => {
     test('Untainted Tainted Array', test_ast('MemberExpression/untainted_tainted'));
     test('Untainted Untainted Array', test_ast('MemberExpression/untainted_untainted'));
     test('Chaining', test_ast('MemberExpression/chaining'));
+    test('Computed Expressions', test_ast('MemberExpression/computed_expressions'));
+    test('Update Expression', test_ast('MemberExpression/update_expression'));
+    test('Update Expression Tainted Environment', test_ast('MemberExpression/update_tainted_env'));
     test('Optional Chaining', test_ast('MemberExpression/optional_chaining'));
 });
 describe("ObjectExpression", () => {
