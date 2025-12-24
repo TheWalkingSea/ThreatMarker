@@ -136,6 +136,11 @@ describe("Member Expression", () => {
     test('Computed Expressions', test_ast('MemberExpression/computed_expressions'));
     test('Update Expression', test_ast('MemberExpression/update_expression'));
     test('Update Expression Tainted Environment', test_ast('MemberExpression/update_tainted_env'));
+    test('Ternary Operator', test_ast('MemberExpression/ternary_operator'));
+    test('Control Flow', test_ast('MemberExpression/control_flow'));
+    test('Unary Operators', test_ast('MemberExpression/unary_operators'));
+    test('Sequence Expressions', test_ast('MemberExpression/sequence_expressions'));
+    test('Nested Taint', test_ast('MemberExpression/nested_taint'));
     test('Optional Chaining', test_ast('MemberExpression/optional_chaining'));
 });
 describe("ObjectExpression", () => {
