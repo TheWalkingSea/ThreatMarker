@@ -1113,13 +1113,24 @@ export class TaintInterpreter {
                 }
 
                 // Deals with a special case where UNTAINTED[UNTAINTED] returns a tainted node -> overwritten by right_id to UNTAINTED!
-                if (!left_object.isTainted && 
-                    !left_property.isTainted && 
+                if (!left_object.isTainted &&
+                    !left_property.isTainted &&
                     node.operator === '=') {
-                    (left_object.value)[left_property.value] = {
-                        value: right_id.value,
-                        isTainted: false
-                    };
+                    // Use assignMemberProperty if object is an Identifier to handle tainted parent scopes
+                    if (t.isIdentifier(node_left.object)) {
+                        ctx.environment.assignMemberProperty(
+                            node_left.object.name,
+                            left_property.value,
+                            { value: right_id.value, isTainted: false },
+                            formatted_node
+                        );
+                    } else {
+                        // For nested member expressions, assign directly
+                        (left_object.value)[left_property.value] = {
+                            value: right_id.value,
+                            isTainted: false
+                        };
+                    }
                 }
 
                 // If left is tainted, simply return node
@@ -1826,6 +1837,96 @@ export class TaintInterpreter {
 
                 const value = (object.value)[property.name] as TaintedLiteral;
                 return value;
+            }
+        }
+
+        /**
+         * {
+         *     object: Expression,
+         *     property: Expression | Identifier,
+         *     computed: boolean,
+         *     optional: boolean
+         * }
+         */
+        if (t.isOptionalMemberExpression(node)) {
+            const object = this.eval(node.object, ctx) as TaintedLiteral;
+
+            // Check if object is null or undefined (and untainted) - return undefined
+            if (!object.isTainted && (object.value === null || object.value === undefined)) {
+                return {
+                    value: undefined,
+                    isTainted: false
+                };
+            }
+
+            // If object is tainted, return tainted optional member expression
+            if (object.isTainted) {
+                if (node.computed) {
+                    const property = this.eval(node.property, ctx) as TaintedLiteral;
+                    const optional_member_expr = t.optionalMemberExpression(
+                        get_repr(object),
+                        get_repr(property),
+                        true,
+                        node.optional
+                    );
+                    return {
+                        node: optional_member_expr,
+                        isTainted: true
+                    };
+                } else {
+                    const property = node.property as t.Identifier;
+                    const optional_member_expr = t.optionalMemberExpression(
+                        get_repr(object),
+                        t.identifier(property.name),
+                        false,
+                        node.optional
+                    );
+                    return {
+                        node: optional_member_expr,
+                        isTainted: true
+                    };
+                }
+            }
+
+            // Object is not null/undefined and not tainted, proceed with normal access
+            if (node.computed) {
+                const property = this.eval(node.property, ctx) as TaintedLiteral;
+
+                if (property.isTainted) {
+                    const optional_member_expr = t.optionalMemberExpression(
+                        get_repr(object),
+                        get_repr(property),
+                        true,
+                        node.optional
+                    );
+                    return {
+                        node: optional_member_expr,
+                        isTainted: true
+                    };
+                }
+
+                // Both object and property are untainted, resolve value
+                const value = (object.value)[property.value];
+                // If value is undefined (property doesn't exist), return undefined TaintedLiteral
+                if (value === undefined) {
+                    return {
+                        value: undefined,
+                        isTainted: false
+                    };
+                }
+                return value as TaintedLiteral;
+            } else {
+                // Non-computed property access (obj?.prop)
+                const property = node.property as t.Identifier;
+                const value = (object.value)[property.name];
+                // If value is undefined (property doesn't exist), return undefined TaintedLiteral
+                if (value === undefined) {
+                    return {
+                        value: undefined,
+                        isTainted: false
+                    };
+                }
+                return value as TaintedLiteral;
             }
         }
 
