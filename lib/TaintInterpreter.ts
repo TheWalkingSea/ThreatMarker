@@ -106,19 +106,22 @@ export class TaintInterpreter {
 
     /**
      * @param {t.MemberExpression} member_node - The unevaluated MemberExpression
-     * @param {TaintedLiteral} property - The evaluated property (OBJECT[PROPERTY])
+     * @param {TaintedLiteral} object - The evaluated object (OBJECT[property])
+     * @param {TaintedLiteral} property - The evaluated property (object[PROPERTY])
      * @returns {t.MemberExpression} - Returns a formatted MemberExpression
      */
-    private format_member_expression(member_node: t.MemberExpression, property: TaintedLiteral): t.MemberExpression {
+    private format_member_expression(member_node: t.MemberExpression, object: TaintedLiteral, property: TaintedLiteral): t.MemberExpression {
+        const object_repr = object.node ? object.node : (member_node.object as t.Expression);
+
         if (!property.isTainted && t.isValidIdentifier(property.value)) {
                 return t.memberExpression(
-                    member_node.object as t.Identifier, // Should ALWAYS be an identifier node
+                    object_repr,
                     t.identifier(property.value),
                     false
                 )
             } else {
                 return t.memberExpression(
-                    member_node.object as t.Identifier, // Should ALWAYS be an identifier node
+                    object_repr,
                     get_repr(property),
                     true
                 )
@@ -715,7 +718,7 @@ export class TaintInterpreter {
                     ? this.eval(member_node.property, ctx) as TaintedLiteral
                     : { value: (member_node.property as t.Identifier).name, isTainted: false };
 
-                const formatted_member_expr = this.format_member_expression(member_node, property);
+                const formatted_member_expr = this.format_member_expression(member_node, object, property);
 
                 // If object or property is tainted, return tainted node
                 if (object.isTainted || property.isTainted) {
@@ -1093,7 +1096,7 @@ export class TaintInterpreter {
                 const node_left = (node.left as t.MemberExpression);
                 const left_object = this.eval(node_left.object, ctx) as TaintedLiteral;
                 const left_property = this.eval(node_left.property, ctx) as TaintedLiteral; // Note: If nested, will be recursively evaluated
-                const formatted_node = this.format_member_expression(node_left, left_property);
+                const formatted_node = this.format_member_expression(node_left, left_object, left_property);
 
                 if (right_id.isTainted) { // If right is tainted, taint assignment
                     if (!left_object.isTainted && !left_property.isTainted) {
@@ -1369,7 +1372,7 @@ export class TaintInterpreter {
                 const node_callee = (node.callee as t.MemberExpression);
                 const object = this.eval(node_callee.object, ctx) as TaintedLiteral;
                 const property = this.eval(node_callee.property, ctx) as TaintedLiteral; // Note: If nested, will be recursively evaluated
-                const formatted_member_expression = this.format_member_expression(node_callee, property);
+                const formatted_member_expression = this.format_member_expression(node_callee, object, property);
                 const formatted_call_expr = t.callExpression(formatted_member_expression, node.arguments);
 
                 if (object.isTainted || property.isTainted) { // Tainted resolve
@@ -1784,7 +1787,7 @@ export class TaintInterpreter {
             // Untainted object parameter -> can resolve to a value
             if (node.computed) { // a['a' + 'b']
                 const property = this.eval(node.property, ctx) as TaintedLiteral;
-                const member_expr: t.MemberExpression = this.format_member_expression(node, property);
+                const member_expr: t.MemberExpression = this.format_member_expression(node, object, property);
 
                 // Tainted object parameter -> cannot resolve
                 if (object.isTainted) {
