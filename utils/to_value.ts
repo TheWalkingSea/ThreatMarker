@@ -10,6 +10,8 @@ export function Value(value: any): t.Literal | t.Expression {
         return t.booleanLiteral(value);  // Create a boolean literal
     } else if (value === null) {
         return t.nullLiteral();  // Handle null literals
+    } else if (value === undefined) {
+        return t.identifier('undefined');  // Handle undefined
     } else if (value instanceof RegExp) {
         return t.regExpLiteral(value.source, value.flags);
     } else if (typeof value == 'object') {
