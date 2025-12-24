@@ -25,7 +25,7 @@ let ti = new TaintInterpreter(globalCtx)
 
 console.log('deobfuscating...')
 
-ti.eval(ast.program)
+ti.eval(ast.program, globalCtx)
 
 console.log('converting to ast...')
 // @ts-ignore
