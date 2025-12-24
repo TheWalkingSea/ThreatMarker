@@ -1,7 +1,15 @@
-var obj = { a: { b: 5 } };
-obj?.a?.b;
-obj?.c;
-obj?.c?.a;
+var nested = [[1, 2], [3, 4]];
+var arr = [nested, 5, 6];
 
-var c;
-c?.a;
+arr?.[0]?.[1];
+
+arr?.[3];
+
+arr?.[3]?.[0];
+
+var nullVar = null;
+var undefVar;
+
+nullVar?.[0];
+
+undefVar?.[0];
