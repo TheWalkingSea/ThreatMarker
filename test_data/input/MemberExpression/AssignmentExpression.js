@@ -9,19 +9,17 @@ myList;
 myList[document] = 3;
 myList;
 
+var myListII = [1, document, document, 4, 5];
 
-myList[1] = 2;
-myList;
+myListII[1] = 2;
+myListII;
 
 
-myList[2] += 3;
-myList;
-
-myList[document] += 6;
-myList;
+myListII[2] += 3;
+myListII;
 
 document[2] += 2;
 
 
-myList[3] += 2;
-myList;
+myListII[3] += 2;
+myListII;
