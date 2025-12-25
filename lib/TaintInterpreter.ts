@@ -1814,17 +1814,25 @@ export class TaintInterpreter {
                         isTainted: true
                     }
                 } else { // UNTAINTED[UNTAINTED] -> Value!
-                    const value = (object.value)[property.value] as TaintedLiteral;
+                    const value = (object.value)[property.value];
+                    if (value === undefined) {
+                        return {
+                            value: undefined,
+                            isTainted: false
+                        }
+                    }
+
+                    // Not undefined
                     return value;
                 }
-            } else { // // UNTAINTED.IDENTIFIER -> Value!
+            } else { // (UN)TAINTED.IDENTIFIER; computed=false
                 const property = (node.property as t.Identifier)
 
                 // Tainted object parameter -> cannot resolve
                 if (object.isTainted) {
                     const member_expr = t.memberExpression(
-                        node.object as t.Identifier, // Should ALWAYS be an identifier node
-                        t.identifier(property.name),
+                        object.node as t.Expression,
+                        property,
                         false
                     )
                     return {
@@ -1834,8 +1842,15 @@ export class TaintInterpreter {
                 }
 
                 // Not tainted -> Resolve
+                const value = (object.value)[property.name];
+                if (value === undefined) {
+                    return {
+                        value: undefined,
+                        isTainted: false
+                    }
+                }
 
-                const value = (object.value)[property.name] as TaintedLiteral;
+                // Not undefined
                 return value;
             }
         }
