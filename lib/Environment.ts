@@ -151,7 +151,7 @@ export class Environment {
      * Assigns a value to a member expression property (e.g., obj[key] = value)
      * Handles taint propagation for parent scope objects
      * @param objectName - The name of the object variable
-     * @param propertyKey - The property key to assign
+     * @param propertyKey - The property key to assign (NOT A NODE)
      * @param value - The TaintedLiteral value to assign
      * @param propertyNode - Optional node representation of the member expression
      */
@@ -159,6 +159,22 @@ export class Environment {
         let env = this._resolve_parent(objectName); // Get environment where object is defined
         let object_tl = env.record.get(objectName) as TaintedLiteral;
 
+        // Case 1: OBJECT is already tainted -> Can't set property of tainted object -> return taint
+        if (object_tl.isTainted) {
+            return;
+        }
+
+        // Case 2: PropertyKey is null or undefined (meaning .value is null)
+        if (propertyKey === null || propertyKey === undefined) {
+            return;
+        }
+
+        // Case 3: Value is tainted -> return taint
+        if (propertyKey.isTainted) {
+            return;
+        }
+
+        // Case 4: OBJECT is NOT tainted & key is CONSTANT
         // If taint_parent_writes is true and object is in parent scope, taint the property
         if (this.taint_parent_writes && env !== this) {
             (object_tl.value)[propertyKey] = {
