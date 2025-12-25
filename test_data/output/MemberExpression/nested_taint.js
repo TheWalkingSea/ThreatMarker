@@ -13,10 +13,12 @@ document;
 
 if (document) {
   clean[0][1] = 99;
+  clean[1][0] += 1;
 }
 
 1;
 
 clean[0][1];
+clean[1][0];
 
-3;
+4;

@@ -13,10 +13,12 @@ mixed[1][1];
 
 if (document) {
     clean[0][1] = 99;
+    clean[1][0] += 1;
 }
 
 clean[0][0];
 
 clean[0][1];
-
 clean[1][0];
+
+clean[1][1];
