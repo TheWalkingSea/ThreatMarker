@@ -142,9 +142,15 @@ describe("Member Expression", () => {
     test('Sequence Expressions', test_ast('MemberExpression/sequence_expressions'));
     test('Nested Taint', test_ast('MemberExpression/nested_taint'));
     test('Optional Chaining', test_ast('MemberExpression/optional_chaining'));
+    test('Compound Operators in Tainted Environment', test_ast('MemberExpression/compound_operators_tainted'));
+    test('Compound Operators with Tainted RHS', test_ast('MemberExpression/compound_operators_tainted_rhs'));
+    test('Nested Update Expression', test_ast('MemberExpression/nested_update_expression'));
+    test('Undefined Properties', test_ast('MemberExpression/undefined_properties'));
+    test('Optional Chaining Advanced', test_ast('MemberExpression/optional_chaining_advanced'));
 });
 describe("ObjectExpression", () => {
     test('Initialization Property Definition', test_ast('ObjectExpression/init_property'));
     test('Initialization Method Definition', test_ast('ObjectExpression/init_method'));
     test('Initialization Spread Operator', test_ast('ObjectExpression/init_spread'));
+    test('Non-Computed Access', test_ast('ObjectExpression/non_computed_access'));
 });
