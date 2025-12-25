@@ -193,4 +193,84 @@ export class Environment {
         }
     }
 
+    /**
+     * Assigns a value to a nested member property (e.g., arr[0][1] = value)
+     * Handles both tainted and untainted environments, navigating through the property path
+     * to reach the final property to assign.
+     *
+     * @param objectName - The name of the root identifier (e.g., "arr")
+     * @param propertyPath - Array of property keys to navigate (e.g., [0, 1] for arr[0][1]); must be of type TaintedLiteral[]
+     * @param value - The TaintedLiteral value to assign
+     * @param propertyNode - Optional AST node for the property (used in tainted environments)
+     */
+    assignNestedMemberProperty(objectName: string, propertyPath: TaintedLiteral[], value: TaintedLiteral, propertyNode?: t.Expression): void {
+        let env = this._resolve_parent(objectName);
+        let root_object_tl = env.record.get(objectName) as TaintedLiteral;
+
+        // Case 1: Object is tainted; return
+        if (root_object_tl.isTainted) {
+            return;
+        }
+
+        // Navigate to the **parent** of the final property
+        let target_object = root_object_tl;
+        for (let i = 0; i < propertyPath.length - 1; i++) {
+            // Case 2.1: Property path is tainted -> Taint target_object
+            if (propertyPath[i].isTainted) {
+                target_object.isTainted = true;
+                target_object.value = undefined;
+                target_object.node = propertyNode;
+                return;
+            }
+            // Case 2.2: We run into a tainted target object; return
+            if (target_object.isTainted) {
+                return;
+            }
+            // Case 2.3: Both target_object and propertyPath[i] are untainted -> We can index!
+            target_object = (target_object.value)[propertyPath[i].value];
+
+            // Case 2.4: target_object is undefined -> must wrap in a TaintedLiteral
+            if (target_object === undefined) {
+                target_object = {
+                    value: undefined,
+                    isTainted: false
+                }
+            }
+        }
+
+        const final_property = propertyPath[propertyPath.length - 1];
+
+        // Case 3.1: final_property is tainted -> Taint target_object
+        if (final_property.isTainted) {
+                target_object.isTainted = true;
+                target_object.value = undefined;
+                target_object.node = propertyNode;
+                return;
+        }
+
+        // Case 3.2: target_object is tainted; return
+        if (target_object.isTainted) {
+            return;
+        }
+
+        // Case 3.3: target_object and final_property are untainted -> set value
+        // If taint_parent_writes is true and object is in parent scope, taint the property
+        if (this.taint_parent_writes && env !== this) {
+            (target_object.value)[final_property.value] = {
+                node: propertyNode,
+                isTainted: true
+            };
+            // __Set node__ on root object to prevent inlining when it contains tainted elements
+            // While `objectName` is "untainted", there is a variable in it that is -> Cannot be correctly rendered
+            env.record.set(objectName, {
+                node: t.identifier(objectName),
+                value: root_object_tl.value,
+                isTainted: false // Guarenteed by Case 1
+            });
+        } else {
+            // Normal assignment
+            (target_object.value)[final_property.value] = value;
+        }
+    }
+
 }
