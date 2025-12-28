@@ -994,6 +994,40 @@ export class TaintInterpreter {
             // If any operands are tainted, the assignment is also tainted
             let right_id = this.eval(node.right, ctx) as TaintedLiteral;
 
+            function resolveAssignmentExpression(operator: string, left: any, right: any): any {
+                // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Expressions_and_operators
+                switch (operator) {
+                    case '=':
+                        return right;
+                    case '+=':
+                        return left + right;
+                    case '-=':
+                        return left - right;
+                    case '*=':
+                        return left * right;
+                    case '/=':
+                        return left / right;
+                    case '%=':
+                        return left % right;
+                    case '**=':
+                        return left ** right;
+                    case '<<=':
+                        return left << right;
+                    case '>>=':
+                        return left >> right;
+                    case '>>>=':
+                        return left >>> right;
+                    case '&=':
+                        return left & right;
+                    case '^=':
+                        return left ^ right;
+                    case '|=':
+                        return left | right;
+                    default:
+                        throw new NotImplementedException(operator)
+                }
+            }
+
             if (t.isIdentifier(node.left)) {
                 let name = node.left.name;
 
@@ -1026,53 +1060,8 @@ export class TaintInterpreter {
                     };
                 }
 
-                let value;
                 let left = left_id.value; // Extract value
-
-                // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Expressions_and_operators
-                switch (node.operator) {
-                    case '=':
-                        value = right;
-                        break;
-                    case '+=':
-                        value = left + right;
-                        break;
-                    case '-=':
-                        value = left - right;
-                        break;
-                    case '*=':
-                        value = left * right;
-                        break;
-                    case '/=':
-                        value = left / right;
-                        break;
-                    case '%=':
-                        value = left % right;
-                        break;
-                    case '**=':
-                        value = left ** right;
-                        break;
-                    case '<<=':
-                        value = left << right;
-                        break;
-                    case '>>=':
-                        value = left >> right;
-                        break;
-                    case '>>>=':
-                        value = left >>> right;
-                        break;;
-                    case '&=':
-                        value = left & right;
-                        break;
-                    case '^=':
-                        value = left ^ right;
-                        break;
-                    case '|=':
-                        value = left | right;
-                        break;
-                    default:
-                        throw new NotImplementedException(node.operator)
-                }
+                let value = resolveAssignmentExpression(node.operator, left, right);
                 
                 ctx.environment.assign(name, {
                     value: value,
@@ -1155,53 +1144,8 @@ export class TaintInterpreter {
                 let right = right_id.value;
                 let left_id = (left_object.value)[left_property.value] as TaintedLiteral;
 
-                let value;
                 let left = left_id.value; // Extract value
-
-                // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Expressions_and_operators
-                switch (node.operator) {
-                    case '=':
-                        value = right;
-                        break;
-                    case '+=':
-                        value = left + right;
-                        break;
-                    case '-=':
-                        value = left - right;
-                        break;
-                    case '*=':
-                        value = left * right;
-                        break;
-                    case '/=':
-                        value = left / right;
-                        break;
-                    case '%=':
-                        value = left % right;
-                        break;
-                    case '**=':
-                        value = left ** right;
-                        break;
-                    case '<<=':
-                        value = left << right;
-                        break;
-                    case '>>=':
-                        value = left >> right;
-                        break;
-                    case '>>>=':
-                        value = left >>> right;
-                        break;;
-                    case '&=':
-                        value = left & right;
-                        break;
-                    case '^=':
-                        value = left ^ right;
-                        break;
-                    case '|=':
-                        value = left | right;
-                        break;
-                    default:
-                        throw new NotImplementedException(node.operator)
-                }
+                let value = resolveAssignmentExpression(node.operator, left, right);
                 
                 // (left_object.value)[left_property.value] = left_id -> Must replace to write-by-reference
                 (left_object.value)[left_property.value] = {
