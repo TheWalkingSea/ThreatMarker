@@ -15,3 +15,8 @@ arr;
 var taintedArr2 = document;
 taintedArr2[tainted] += 10;
 taintedArr2;
+
+// Case 4: Nested RHS taint
+var arr3 = [[0, 2], 2, 3];
+arr3[0][1] = tainted;
+arr3;
