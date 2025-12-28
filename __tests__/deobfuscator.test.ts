@@ -147,6 +147,7 @@ describe("Member Expression", () => {
     test('Nested Update Expression', test_ast('MemberExpression/nested_update_expression'));
     test('Undefined Properties', test_ast('MemberExpression/undefined_properties'));
     test('Optional Chaining Advanced', test_ast('MemberExpression/optional_chaining_advanced'));
+    test('Test Compound Tainted Value', test_ast('MemberExpression/test_compound_tainted_value'));
 });
 describe("ObjectExpression", () => {
     test('Initialization Property Definition', test_ast('ObjectExpression/init_property'));
