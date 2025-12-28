@@ -219,7 +219,7 @@ export class Environment {
             if (propertyPath[i].isTainted) {
                 target_object.isTainted = true;
                 target_object.value = undefined;
-                target_object.node = propertyNode;
+                target_object.node = propertyNode || value.node;
                 return;
             }
             // Case 2.2: We run into a tainted target object; return
@@ -244,7 +244,7 @@ export class Environment {
         if (final_property.isTainted) {
                 target_object.isTainted = true;
                 target_object.value = undefined;
-                target_object.node = propertyNode;
+                target_object.node = propertyNode || value.node;
                 return;
         }
 
@@ -257,7 +257,7 @@ export class Environment {
         // If taint_parent_writes is true and object is in parent scope, taint the property
         if (this.taint_parent_writes && env !== this) {
             (target_object.value)[final_property.value] = {
-                node: propertyNode,
+                node: propertyNode || value.node,
                 isTainted: true
             };
             // __Set node__ on root object to prevent inlining when it contains tainted elements
