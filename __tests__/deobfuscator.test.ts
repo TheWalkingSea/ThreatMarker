@@ -148,6 +148,7 @@ describe("Member Expression", () => {
     test('Undefined Properties', test_ast('MemberExpression/undefined_properties'));
     test('Optional Chaining Advanced', test_ast('MemberExpression/optional_chaining_advanced'));
     test('Test Compound Tainted Value', test_ast('MemberExpression/test_compound_tainted_value'));
+    test('Compound Tainted Edge Cases', test_ast('MemberExpression/compound_tainted_edge_cases'));
 });
 describe("ObjectExpression", () => {
     test('Initialization Property Definition', test_ast('ObjectExpression/init_property'));
