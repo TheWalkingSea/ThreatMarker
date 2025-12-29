@@ -11,7 +11,7 @@ arr[0][1] = 10;
 arr[0][1];
 
 arr[1][1] = document;
-arr[1][1];;
+arr[1][1];
 
 // Case 3: Tainted object with string property
 var obj = document;
