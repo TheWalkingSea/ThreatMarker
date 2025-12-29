@@ -5,6 +5,7 @@ import { DeobfuscatorException } from "./DeobfuscatorException";
 import { ReferenceException } from "./ReferenceException";
 import * as t from '@babel/types';
 import { get_repr } from './../utils/to_value';
+import { format } from "node:path";
 
 export class TaintInterpreter {
     callstack: Array<ExecutionContext>;
@@ -1080,17 +1081,60 @@ export class TaintInterpreter {
                 } // Will be wrapped in another expression. ExpressionStatment, for example.
             }
             
-            // Note: It is assumed that UNTAINTED[TAINTED] will not taint the entire object
+            // Note: It is assumed that UNTAINTED[TAINTED] will taint the entire object
             if (t.isMemberExpression(node.left)) {
                 const node_left = (node.left as t.MemberExpression);
-                const left_object = this.eval(node_left.object, ctx) as TaintedLiteral;
-                const left_property = this.eval(node_left.property, ctx) as TaintedLiteral; // Note: If nested, will be recursively evaluated
-                const formatted_node = this.format_member_expression(node_left, left_object, left_property);
 
-                if (right_id.isTainted) { // If right is tainted, taint assignment
-                    if (!left_object.isTainted && !left_property.isTainted) {
-                        (left_object.value)[left_property.value] = right_id;
-                    }
+                // ========== STEP 1: Extract property path and format final node ==========
+                // Extract root identifier and full property path before evaluating
+                // This is critical for nested member expressions like clean[0][1]
+                let current_node: t.Expression = node_left;
+                const property_path: TaintedLiteral[] = [];
+                let root_identifier: string | null = null;
+
+                // Walk up the MemberExpression chain to build the complete path
+                while (t.isMemberExpression(current_node)) {
+                    const member_expr = current_node as t.MemberExpression;
+                    const prop = member_expr.computed
+                        ? this.eval(member_expr.property, ctx) as TaintedLiteral
+                        : { value: (member_expr.property as t.Identifier).name, isTainted: false };
+                    property_path.unshift(prop);
+                    current_node = member_expr.object;
+                }
+
+                // Check if the root is an identifier
+                if (t.isIdentifier(current_node)) {
+                    root_identifier = current_node.name;
+                }
+
+                // Build the formatted AST node (preserves original structure like clean[2 + 2][1] -> clean[4][1])
+                let formatted_node;
+                if (root_identifier) {
+                    formatted_node = current_node as t.Identifier;
+                } else {
+                    let root = this.eval(current_node, ctx) as TaintedLiteral;
+                    formatted_node = get_repr(root);
+                }
+
+                for (let property of property_path) {
+                    formatted_node = t.memberExpression(
+                        formatted_node,
+                        get_repr(property),
+                        true // Always use computed style for consistency
+                    );
+                }
+
+                formatted_node = formatted_node as t.MemberExpression;
+
+                // ========== STEP 2: Evaluate left side ==========
+                const left_object = this.eval(node_left.object, ctx) as TaintedLiteral;
+                const left_property = this.eval(node_left.property, ctx) as TaintedLiteral;
+
+                // ========== STEP 3: Handle cases where left side is tainted ==========
+                // Case 1: TAINTED[*] ?= *
+                if (left_object.isTainted) {
+                    // Object is already tainted, can't resolve property access
+                    // Just return tainted assignment expression
                     return {
                         node: t.assignmentExpression(
                             node.operator,
@@ -1101,59 +1145,135 @@ export class TaintInterpreter {
                     };
                 }
 
-                // Deals with a special case where UNTAINTED[UNTAINTED] returns a tainted node -> overwritten by right_id to UNTAINTED!
-                if (!left_object.isTainted &&
-                    !left_property.isTainted &&
-                    node.operator === '=') {
-                    // Use assignMemberProperty if object is an Identifier to handle tainted parent scopes
-                    if (t.isIdentifier(node_left.object)) {
-                        ctx.environment.assignMemberProperty(
-                            node_left.object.name,
-                            left_property.value,
-                            { value: right_id.value, isTainted: false },
+                // Case 2: UNTAINTED[TAINTED] ?= *
+                if (left_property.isTainted) {
+                    // Since we don't know which property is being set, taint the target object
+                    // For nested paths like arr[0][TAINTED], we need to taint arr[0], not arr
+                    if (root_identifier) {
+                        ctx.environment.assignNestedMemberProperty(
+                            root_identifier,
+                            property_path,
+                            {
+                                node: t.identifier(root_identifier),
+                                value: undefined,
+                                isTainted: true
+                            },
+                            formatted_node?.object
+                        )
+
+                        // Since there is a part of root_identifier that is tainted & cannot be visualized,
+                        // we must set the node of root_identifier to appear tainted
+                        ctx.environment.resolve(root_identifier).node = t.identifier(root_identifier);
+                    }
+
+                    // Return tainted assignment expression
+                    return {
+                        node: t.assignmentExpression(
+                            node.operator,
+                            formatted_node,
+                            get_repr(right_id)
+                        ),
+                        isTainted: true
+                    };
+                }
+
+
+                // ========== STEP 5: Handle UNTAINTED[UNTAINTED] ?= * ==========
+                // At this point: left_object, and left_property, are all untainted
+
+                // Retrieve the current value to evaluate the AssignmentExpression
+                let current_value = (left_object.value)[left_property.value] as TaintedLiteral;
+
+                // Case 3: UNTAINTED[UNTAINTED] -> tainted value ?= * where value at that location is tainted
+                // If the stored value is tainted, we can perform the assignment
+                if (current_value?.isTainted) {
+                    let assigned_value: TaintedLiteral;
+
+                    if (node.operator === '=') {
+                        // Simple assignment - just use the RHS
+                        assigned_value = right_id;
+                    } else {
+                        // Compound operator - create binary expression: tainted_value OP rhs
+                        const operator_map: { [key: string]: t.BinaryExpression['operator'] } = {
+                            '+=': '+', '-=': '-', '*=': '*', '/=': '/', '%=': '%', '**=': '**',
+                            '<<=': '<<', '>>=': '>>', '>>>=': '>>>', '&=': '&', '^=': '^', '|=': '|'
+                        };
+                        const binary_op = operator_map[node.operator];
+                        if (!binary_op) throw new NotImplementedException(node.operator);
+
+                        assigned_value = {
+                            node: t.binaryExpression(binary_op, get_repr(current_value), get_repr(right_id)),
+                            isTainted: true
+                        };
+                    }
+
+                    // Perform the assignment
+                    if (root_identifier) {
+                        ctx.environment.assignNestedMemberProperty(
+                            root_identifier,
+                            property_path,
+                            assigned_value,
                             formatted_node
                         );
                     } else {
-                        // For nested member expressions, assign directly
-                        (left_object.value)[left_property.value] = {
-                            value: right_id.value,
-                            isTainted: false
-                        };
+                        (left_object.value)[left_property.value] = assigned_value;
                     }
-                }
 
-                // If left is tainted, simply return node
-                if (left_object.isTainted || 
-                    left_property.isTainted || (
-                        !left_object.isTainted && 
-                        !left_property.isTainted && 
-                        ((left_object.value)[left_property.value] as TaintedLiteral).isTainted
-                        ) // The last case is for UNTAINTED[UNTAINTED] -> Tainted node
-                    ) { 
                     return {
                         node: t.assignmentExpression(
                             node.operator,
                             formatted_node,
                             get_repr(right_id)
                         ),
-                        isTainted: true
+                        isTainted: assigned_value.isTainted
                     };
                 }
 
-                // Left ID and Right ID are untainted
-                let right = right_id.value;
-                let left_id = (left_object.value)[left_property.value] as TaintedLiteral;
+                let assigned_value: TaintedLiteral;
+                let is_tainted: boolean;
 
-                let left = left_id.value; // Extract value
-                let value = resolveAssignmentExpression(node.operator, left, right);
-                
-                // (left_object.value)[left_property.value] = left_id -> Must replace to write-by-reference
-                (left_object.value)[left_property.value] = {
-                    value: value,
-                    isTainted: false
-                };
+                // Case 4: UNTAINTED[UNTAINTED] ?= TAINTED
+                if (right_id.isTainted) {
+                    is_tainted = true;
 
-                right_id.value = right;
+                    // For simple assignment, just use the tainted RHS
+                    if (node.operator === '=') {
+                        assigned_value = right_id;
+                    } else {
+                        // For compound operators, create binary expression: current_value OP tainted_rhs
+                        const operator_map: { [key: string]: t.BinaryExpression['operator'] } = {
+                            '+=': '+', '-=': '-', '*=': '*', '/=': '/', '%=': '%', '**=': '**',
+                            '<<=': '<<', '>>=': '>>', '>>>=': '>>>', '&=': '&', '^=': '^', '|=': '|'
+                        };
+                        const binary_op = operator_map[node.operator];
+                        if (!binary_op) throw new NotImplementedException(node.operator);
+
+                        assigned_value = {
+                            node: t.binaryExpression(binary_op, get_repr(current_value), right_id.node as t.Expression),
+                            isTainted: true
+                        };
+                    }
+                }
+                // Case 5: UNTAINTED[UNTAINTED] ?= UNTAINTED
+                else {
+                    is_tainted = false;
+
+                    // Compute the new value
+                    const computed_value = resolveAssignmentExpression(node.operator, current_value.value, right_id.value);
+                    assigned_value = { value: computed_value, isTainted: false };
+                }
+
+                // Perform the assignment
+                if (root_identifier) {
+                    ctx.environment.assignNestedMemberProperty(
+                        root_identifier,
+                        property_path,
+                        assigned_value,
+                        formatted_node
+                    );
+                } else {
+                    (left_object.value)[left_property.value] = assigned_value;
+                }
 
                 return {
                     node: t.assignmentExpression(
@@ -1161,9 +1281,8 @@ export class TaintInterpreter {
                         formatted_node,
                         get_repr(right_id)
                     ),
-                    isTainted: false
-                } // Will be wrapped in another expression. ExpressionStatment, for example.
-                
+                    isTainted: is_tainted
+                };
             }
 
         }
@@ -1722,7 +1841,7 @@ export class TaintInterpreter {
             )
 
             return {
-                node: array_expr,
+                // node: array_expr,
                 value: element_list,
                 isTainted: false
             }
