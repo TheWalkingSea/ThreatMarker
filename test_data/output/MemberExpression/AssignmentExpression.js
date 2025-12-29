@@ -16,9 +16,9 @@ myListII[1] = 2;
 
 
 myListII[2] += 3;
-[1, 2, document, 4, 5];
+[1, 2, document + 3, 4, 5];
 
 document[2] += 2;
 
 myListII[3] += 2;
-[1, 2, document, 6, 5];
+[1, 2, document + 3, 6, 5];
