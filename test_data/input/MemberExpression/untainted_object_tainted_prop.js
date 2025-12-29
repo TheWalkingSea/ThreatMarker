@@ -25,3 +25,4 @@ arr4;
 var nested = [[1, 2], [3, 4]];
 nested[0][tainted_idx] = 99;
 nested;
+nested[1][0];
