@@ -9,7 +9,7 @@ import { Environment } from './lib/Environment';
 
 const d0 = new Date()
 
-const INPUT: string = "./input/index.js"
+const INPUT: string = "./data/input/index.js"
 
 
 const data = fs.readFileSync(INPUT, 'utf8');
