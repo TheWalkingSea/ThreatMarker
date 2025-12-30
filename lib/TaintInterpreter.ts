@@ -1818,6 +1818,85 @@ export class TaintInterpreter {
             return this.append_ast(encapsulated_blocks);
         }
 
+        if (t.isDoWhileStatement(node)) {
+            // Execute do-while loop - body executes at least once before test
+
+            // Untainted Do-While Loop
+            let block_stmts: t.Statement[] = [];
+
+            const env_1 = new Environment(new Map(), ctx.environment, false, false, false);
+            const exec_ctx_1 = new ExecutionContext(this, env_1, 'DoWhileStatement');
+            this.callstack.push(exec_ctx_1);
+
+            // Execute body at least once
+            let test: TaintedLiteral = { value: true, isTainted: false }; // Initialize for do-while, will be overwritten
+            do {
+                // Evaluate Block
+                const evaluated_block = this.get_stmt_wrapper(
+                    this.eval,
+                    node.body,
+                    exec_ctx_1
+                ) as t.BlockStatement;
+                block_stmts.push(evaluated_block);
+
+                if (exec_ctx_1 !== this.callstack[this.callstack.length - 1]) {
+                    break;
+                }
+
+                test = this.eval(node.test, ctx) as TaintedLiteral; // Evaluate test after body
+            } while (!test.isTainted && !exec_ctx_1.environment.is_tainted() && test.value);
+
+            if (this.callstack.pop() !== exec_ctx_1) {
+                throw new Error("Unexpected DoWhileLoop stack call popped.");
+            }
+
+            // Tainted Do-While Loop
+            if (test.isTainted || exec_ctx_1.environment.is_tainted()) {
+                // We must update unchanged_variables through a first pass, then deobfuscate the code
+                const env = new Environment(new Map(), ctx.environment, true, false, true);
+                const exec_ctx = new ExecutionContext(this, env, 'DoWhileStatement');
+
+                this.callstack.push(exec_ctx);
+
+                // Run block in isolation until the function is idempotent
+                // This is because a variable may be write-tainted when referenced previously (and not tainted previously)
+                let body: t.BlockStatement;
+                let test_stmt: TaintedLiteral;
+                while (true) {
+
+                    const initial_return_stmt_flag = this.return_stmt_flag;
+                    this.return_stmt_flag = true; // returns the block instead of result
+
+                    const newbody = this.eval(node.body, exec_ctx) as t.BlockStatement;
+                    this.return_stmt_flag = initial_return_stmt_flag;
+
+                    const new_test_stmt = this.eval(node.test, exec_ctx) as TaintedLiteral;
+
+                    // Check idempotency
+                    // @ts-ignore
+                    if (body && test_stmt && t.isNodesEquivalent(body, newbody) && t.isNodesEquivalent(test_stmt.node, new_test_stmt.node)) {
+                        break;
+                    }
+                    body = newbody;
+                    test_stmt = new_test_stmt;
+                }
+
+                // Remove ExecutionContext
+                this.callstack.pop();
+
+                const do_while_stmt = t.doWhileStatement(
+                    get_repr(test_stmt),
+                    body
+                );
+
+                return this.append_ast(do_while_stmt);
+            }
+
+            // Not tainted
+            const encapsulated_blocks = t.blockStatement(block_stmts);
+            return this.append_ast(encapsulated_blocks);
+        }
+
         /**
          * {
          *     elements: Array<null | Expression | SpreadElement>
