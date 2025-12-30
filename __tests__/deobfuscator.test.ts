@@ -84,6 +84,14 @@ describe("WhileLoop", () => {
     test('Tainted Condition - External Read', test_ast('WhileLoop/taint_ext_read'));
     test('Tainted Condition - Block Simplification', test_ast('WhileLoop/taint_int'));
 });
+describe("DoWhileStatement", () => {
+    test('Untainted Condition', test_ast('DoWhileStatement/untaint'));
+    test('Untained Condition - Do once', test_ast('DoWhileStatement/do_once'));
+    test('Tainted Condition - External Write', test_ast('DoWhileStatement/taint_ext_write'));
+    test('Tainted Condition - External Write 2', test_ast('DoWhileStatement/taint_ext_write_2'));
+    test('Tainted Condition - External Read', test_ast('DoWhileStatement/taint_ext_read'));
+    test('Tainted Condition - Block Simplification', test_ast('DoWhileStatement/taint_int'));
+});
 describe("FunctionDeclaration", () => {
     test('Declaration', test_ast('FunctionDeclaration/FunctionDeclaration'));
     test('Inner Scope Var Simplification', test_ast('FunctionDeclaration/inner_scope'));
