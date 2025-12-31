@@ -106,6 +106,20 @@ export class TaintInterpreter {
     }
 
     /**
+     * Safely pops an execution context from the callstack
+     * Only pops if the expected context is still on top (handles cases where ReturnStatement already popped it)
+     * @param {ExecutionContext} expected_ctx - The context expected to be on top of the stack
+     * @returns {boolean} - Returns true if the context was popped, false if it was already gone
+     */
+    private safe_pop_context(expected_ctx: ExecutionContext): boolean {
+        if (this.callstack[this.callstack.length - 1] === expected_ctx) {
+            this.callstack.pop();
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * @param {t.MemberExpression} member_node - The unevaluated MemberExpression
      * @param {TaintedLiteral} object - The evaluated object (OBJECT[property])
      * @param {TaintedLiteral} property - The evaluated property (object[PROPERTY])
@@ -832,7 +846,7 @@ export class TaintInterpreter {
                         throw new DeobfuscatorException('TernaryExpression Evaluated to a value that is not type TaintLiteral');
                     }
 
-                    this.callstack.pop() // Remove isolatedEnv
+                    this.safe_pop_context(isolatedCtx); // Remove isolatedEnv
 
                     // Any variables defined in the inner block are tainted in outer scope
                     isolatedCtx.environment.getLocalRecord().forEach((value: TaintedLiteral, key: string, _) => {
@@ -1353,8 +1367,8 @@ export class TaintInterpreter {
                 self.eval(node.body, exec_ctx); // Executes block
                 self.return_stmt_flag = initial_return_stmt_flag;
 
-                // Remove ExecutionContext
-                self.callstack.pop()
+                // Remove ExecutionContext (only if it hasn't been popped by a return statement)
+                self.safe_pop_context(exec_ctx);
 
                 // @ts-ignore - Ignore `this` error
                 return new.target ? self : self.returnValue; // When ran with new, return this
@@ -1730,9 +1744,7 @@ export class TaintInterpreter {
                 test = this.eval(node.test, ctx) as TaintedLiteral; // Re-evaluate test
             }
 
-            if (this.callstack.pop() !== exec_ctx_1) {
-                throw new Error("Unexpected WhileLoop stack call popped.");
-            }
+            this.safe_pop_context(exec_ctx_1);
 
             // Tainted While Loop
             if (test.isTainted || exec_ctx_1.environment.is_tainted()) {
@@ -1766,7 +1778,7 @@ export class TaintInterpreter {
                 }
 
                 // Remove ExecutionContext
-                this.callstack.pop();
+                this.safe_pop_context(exec_ctx);
 
                 const while_stmt = t.whileStatement(
                     get_repr(test_stmt),
@@ -1809,9 +1821,7 @@ export class TaintInterpreter {
                 test = this.eval(node.test, ctx) as TaintedLiteral; // Evaluate test after body
             } while (!test.isTainted && !exec_ctx_1.environment.is_tainted() && test.value);
 
-            if (this.callstack.pop() !== exec_ctx_1) {
-                throw new Error("Unexpected DoWhileLoop stack call popped.");
-            }
+            this.safe_pop_context(exec_ctx_1);
 
             // Tainted Do-While Loop
             if (test.isTainted || exec_ctx_1.environment.is_tainted()) {
@@ -1845,7 +1855,7 @@ export class TaintInterpreter {
                 }
 
                 // Remove ExecutionContext
-                this.callstack.pop();
+                this.safe_pop_context(exec_ctx);
 
                 const do_while_stmt = t.doWhileStatement(
                     get_repr(test_stmt),
@@ -1926,9 +1936,8 @@ export class TaintInterpreter {
                 }
             }
 
-            if (this.callstack.pop() !== exec_ctx_1) {
-                throw new Error("Unexpected ForLoop stack call popped.");
-            }
+            // Only pop if the context is still there (it might have been popped by a return statement)
+            this.safe_pop_context(exec_ctx_1);
 
             // Tainted For Loop
             if (test.isTainted || exec_ctx_1.environment.is_tainted()) {
@@ -1987,7 +1996,7 @@ export class TaintInterpreter {
                 }
 
                 // Remove ExecutionContext
-                this.callstack.pop();
+                this.safe_pop_context(exec_ctx);
 
                 const for_stmt = t.forStatement(
                     init_stmt,
