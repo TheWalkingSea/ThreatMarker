@@ -116,6 +116,9 @@ describe("FunctionDeclaration", () => {
     test('Parameter Simplification', test_ast('FunctionDeclaration/parameters_taint'));
     test('Isolate Outer Variables', test_ast('FunctionDeclaration/isolation'));
 });
+describe("FunctionExpression", () => {
+    test('Anonymous Functions', test_ast('FunctionExpression/anonymous_function'));
+});
 describe("CallExpression", () => {
     test('CallExpression', test_ast('CallExpression/CallExpression'));
     test('Tainted Return Value', test_ast('CallExpression/tainted'));
@@ -123,7 +126,6 @@ describe("CallExpression", () => {
     test('External Write', test_ast('CallExpression/ext_write'));
     test('External Read', test_ast('CallExpression/ext_read'));
     test('Parameters', test_ast('CallExpression/parameters'));
-    test('Anonymous Functions', test_ast('CallExpression/anonymous_function'));
 });
 test('UnaryExpression', test_ast('unary_exp'));
 test('UpdateExpression', test_ast('update_exp'));
