@@ -27,4 +27,4 @@ var tainted = document;
         tainted++;
     }
 }
-5;
+i;

@@ -1,7 +1,6 @@
-var a = 3;
 var b = document;
 
-for (;b > 0;) {
+for (var a = 3; b > 0;) {
     a;
 
     a--;

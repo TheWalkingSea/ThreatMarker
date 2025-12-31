@@ -1,3 +1,4 @@
+var i = 0;
 for (var a = 2 ;window; i++) {
     var d = 4;
 }
