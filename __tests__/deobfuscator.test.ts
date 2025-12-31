@@ -92,6 +92,23 @@ describe("DoWhileStatement", () => {
     test('Tainted Condition - External Read', test_ast('DoWhileStatement/taint_ext_read'));
     test('Tainted Condition - Block Simplification', test_ast('DoWhileStatement/taint_int'));
 });
+describe("ForStatement", () => {
+    test('Basic Untainted', test_ast('ForStatement/basic_untainted'));
+    test('Tainted Condition', test_ast('ForStatement/tainted_condition'));
+    test('Tainted Body', test_ast('ForStatement/tainted_body'));
+    test('Increment in Body', test_ast('ForStatement/inc_body'));
+    test('No Init', test_ast('ForStatement/no_init'));
+    test('No Update', test_ast('ForStatement/no_update'));
+    test('Expression Init', test_ast('ForStatement/expression_init'));
+    test('Tainted Update', test_ast('ForStatement/tainted_update'));
+    test('Empty Body', test_ast('ForStatement/empty_body'));
+    test('Nested', test_ast('ForStatement/nested'));
+    test('Untainted', test_ast('ForStatement/untaint'));
+    test('Tainted - External Read', test_ast('ForStatement/taint_ext_read'));
+    test('Tainted - External Write', test_ast('ForStatement/taint_ext_write'));
+    test('Tainted - External Write 2', test_ast('ForStatement/taint_ext_write_2'));
+    test('Tainted - Block Simplification', test_ast('ForStatement/taint_int'));
+});
 describe("FunctionDeclaration", () => {
     test('Declaration', test_ast('FunctionDeclaration/FunctionDeclaration'));
     test('Inner Scope Var Simplification', test_ast('FunctionDeclaration/inner_scope'));
