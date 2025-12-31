@@ -1,5 +1,5 @@
 var result = 0;
-var tainted;
+var tainted = document;
 for (var i = 0; i < 5; i++) {
   result += i;
   if (i > 2) {
