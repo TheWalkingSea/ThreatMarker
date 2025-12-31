@@ -1299,8 +1299,7 @@ export class TaintInterpreter {
          *     async: boolean,
          *     declare?: boolean | null,
          *     predicate?: DeclaredPredicate | InferredPredicate | null,
-         *     returnType?: TypeAnnotation | TSTypeAnnotation | Noop | null,
-         *     typeParameters?: TypeParameterDeclaration | TSTypeParameterDeclaration | Noop | null
+         *     returnType?: TypeAnnotation | TSTypeAnnotation | Noop | null
          * }
          */
         // TODO: 
