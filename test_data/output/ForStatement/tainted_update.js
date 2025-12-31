@@ -1,0 +1,30 @@
+var tainted = document;
+{
+    var i = 0;
+    {
+        0;
+        i++;
+        tainted++;
+    }
+    {
+        1;
+        i++;
+        tainted++;
+    }
+    {
+        2;
+        i++;
+        tainted++;
+    }
+    {
+        3;
+        i++;
+        tainted++;
+    }
+    {
+        4;
+        i++;
+        tainted++;
+    }
+}
+5;
