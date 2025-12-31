@@ -1034,6 +1034,7 @@ export class TaintInterpreter {
 
                 if (right_id.isTainted) { // If right is tainted, taint assignment
                     ctx.environment.assign(name, {
+                        node: get_repr(right_id),
                         isTainted: true
                     }) // Taint is passed down
                     return {
@@ -1767,6 +1768,7 @@ export class TaintInterpreter {
 
                 test = this.eval(node.test, ctx) as TaintedLiteral; // Re-evaluate test
             }
+
             if (this.callstack.pop() !== exec_ctx_1) {
                 throw new Error("Unexpected WhileLoop stack call popped.");
             }
