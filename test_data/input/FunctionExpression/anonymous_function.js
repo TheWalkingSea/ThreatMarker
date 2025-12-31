@@ -21,7 +21,7 @@ add(10, 20);
 
 // Anonymous function as callback (simplified)
 var numbers = [1, 2, 3];
-var doubled = [];
+var doubled = [0, 0, 0];
 for (var i = 0; i < 3; i++) {
     doubled[i] = (function(n) {
         return n * 2;

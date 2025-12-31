@@ -16,7 +16,7 @@ var add = function (x, y) {
 (add(10, 20), 30);
 
 var numbers = [1, 2, 3];
-var doubled = [];
+var doubled = [0, 0, 0];
 {
   var i = 0;
   {
