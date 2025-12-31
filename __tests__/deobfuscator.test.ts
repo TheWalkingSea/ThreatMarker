@@ -123,6 +123,7 @@ describe("CallExpression", () => {
     test('External Write', test_ast('CallExpression/ext_write'));
     test('External Read', test_ast('CallExpression/ext_read'));
     test('Parameters', test_ast('CallExpression/parameters'));
+    test('Anonymous Functions', test_ast('CallExpression/anonymous_function'));
 });
 test('UnaryExpression', test_ast('unary_exp'));
 test('UpdateExpression', test_ast('update_exp'));
