@@ -1417,7 +1417,6 @@ export class TaintInterpreter {
          * }
          */
         if (t.isCallExpression(node)) {
-                let func: Function = ctx.environment.resolve(node.callee.name).value as Function; // Gets the runner function
             // Evaluate the callee to get the function
             const callee_tl = this.eval(node.callee, ctx) as TaintedLiteral;
 
