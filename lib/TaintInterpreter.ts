@@ -1897,6 +1897,140 @@ export class TaintInterpreter {
             return this.append_ast(encapsulated_blocks);
         }
 
+        if (t.isForStatement(node)) {
+            // Execute for loop: for (init; test; update) body
+
+            // Untainted For Loop
+            let block_stmts: t.Statement[] = [];
+
+            const env_1 = new Environment(new Map(), ctx.environment, false, false, false);
+            const exec_ctx_1 = new ExecutionContext(this, env_1, 'ForStatement');
+            this.callstack.push(exec_ctx_1);
+
+            // Execute init and capture it for output
+            let init_stmt: t.VariableDeclaration | t.Expression | null = null;
+            if (node.init) {
+                const initial_return_stmt_flag = this.return_stmt_flag;
+                this.return_stmt_flag = true;
+                init_stmt = this.eval(node.init, exec_ctx_1) as t.VariableDeclaration | t.Expression;
+                this.return_stmt_flag = initial_return_stmt_flag;
+            }
+
+            // Execute loop
+            let test: TaintedLiteral = { value: true, isTainted: false }; // Default to true if no test
+            if (node.test) {
+                test = this.eval(node.test, exec_ctx_1) as TaintedLiteral;
+            }
+
+            while (!test.isTainted && !exec_ctx_1.environment.is_tainted() && test.value) {
+
+                // Evaluate Block
+                const evaluated_block = this.get_stmt_wrapper(
+                    this.eval,
+                    node.body,
+                    exec_ctx_1
+                ) as t.BlockStatement;
+
+                // Add update expression to the block if it exists
+                if (node.update) {
+                    const initial_return_stmt_flag = this.return_stmt_flag;
+                    this.return_stmt_flag = true;
+                    const update_expr = this.eval(node.update, exec_ctx_1) as TaintedLiteral;
+                    this.return_stmt_flag = initial_return_stmt_flag;
+
+                    // Add update as expression statement to the block
+                    evaluated_block.body.push(t.expressionStatement(get_repr(update_expr)));
+                }
+
+                block_stmts.push(evaluated_block);
+
+                if (exec_ctx_1 !== this.callstack[this.callstack.length - 1]) {
+                    break;
+                }
+
+                // Re-evaluate test
+                if (node.test) {
+                    test = this.eval(node.test, exec_ctx_1) as TaintedLiteral;
+                }
+            }
+
+            if (this.callstack.pop() !== exec_ctx_1) {
+                throw new Error("Unexpected ForLoop stack call popped.");
+            }
+
+            // Tainted For Loop
+            if (test.isTainted || exec_ctx_1.environment.is_tainted()) {
+                // We must update unchanged_variables through a first pass, then deobfuscate the code
+                const env = new Environment(new Map(), ctx.environment, true, false, true);
+                const exec_ctx = new ExecutionContext(this, env, 'ForStatement');
+
+                this.callstack.push(exec_ctx);
+
+                // Execute init in parent context so variables are accessible outside the loop
+                let init_stmt: t.VariableDeclaration | t.Expression | null = null;
+                if (node.init) {
+                    const initial_return_stmt_flag = this.return_stmt_flag;
+                    this.return_stmt_flag = true;
+                    init_stmt = this.eval(node.init, ctx) as t.VariableDeclaration | t.Expression;
+                    this.return_stmt_flag = initial_return_stmt_flag;
+                }
+
+                // Run block in isolation until the function is idempotent
+                // This is because a variable may be write-tainted when referenced previously (and not tainted previously)
+                let body: t.BlockStatement | undefined;
+                let test_stmt: TaintedLiteral | undefined;
+                let update_stmt: t.Expression | null = null;
+                while (true) {
+
+                    const initial_return_stmt_flag = this.return_stmt_flag;
+                    this.return_stmt_flag = true; // returns the block instead of result
+
+                    const newbody = this.eval(node.body, exec_ctx) as t.BlockStatement;
+                    this.return_stmt_flag = initial_return_stmt_flag;
+
+                    const new_test_stmt = node.test ? this.eval(node.test, exec_ctx) as TaintedLiteral : { value: true, isTainted: false };
+                    const new_update_stmt = node.update ? this.eval(node.update, exec_ctx) as TaintedLiteral : null;
+
+                    // Check idempotency
+                    // @ts-ignore
+                    const update_equal = (!update_stmt && !new_update_stmt) ||
+                        (update_stmt && new_update_stmt && t.isNodesEquivalent(update_stmt, get_repr(new_update_stmt)));
+
+                    if (body && test_stmt && t.isNodesEquivalent(body, newbody) &&
+                        test_stmt.node && t.isNodesEquivalent(test_stmt.node, new_test_stmt.node) && update_equal) {
+                        break;
+                    }
+                    body = newbody;
+                    test_stmt = new_test_stmt;
+                    update_stmt = new_update_stmt ? get_repr(new_update_stmt) : null;
+                }
+
+                // Remove ExecutionContext
+                this.callstack.pop();
+
+                const for_stmt = t.forStatement(
+                    init_stmt,
+                    test_stmt && (test_stmt.value !== true || test_stmt.isTainted) ? get_repr(test_stmt) : null,
+                    update_stmt,
+                    body as t.BlockStatement
+                );
+
+                return this.append_ast(for_stmt);
+            }
+
+            // Not tainted - prepend init statement to the block if it exists
+            if (init_stmt) {
+                if (t.isStatement(init_stmt)) {
+                    block_stmts.unshift(init_stmt);
+                } else {
+                    block_stmts.unshift(t.expressionStatement(init_stmt));
+                }
+            }
+
+            const encapsulated_blocks = t.blockStatement(block_stmts);
+            return this.append_ast(encapsulated_blocks);
+        }
+
         /**
          * {
          *     elements: Array<null | Expression | SpreadElement>
