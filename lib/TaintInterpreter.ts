@@ -1910,11 +1910,20 @@ export class TaintInterpreter {
             this.callstack.push(exec_ctx_1);
 
             // Execute init and capture it for output
-            let init_stmt: t.VariableDeclaration | t.Expression | null = null;
+            let init_stmt: t.VariableDeclaration | t.ExpressionStatement | null = null;
             if (node.init) {
                 const initial_return_stmt_flag = this.return_stmt_flag;
                 this.return_stmt_flag = true;
-                init_stmt = this.eval(node.init, exec_ctx_1) as t.VariableDeclaration | t.Expression;
+
+                if (t.isVariableDeclaration(node.init)) {
+                    // VariableDeclaration -> eval returns VariableDeclaration
+                    init_stmt = this.eval(node.init, exec_ctx_1) as t.VariableDeclaration;
+                } else {
+                    // Expression -> eval returns TaintedLiteral, need to wrap in ExpressionStatement
+                    const init_expr = this.eval(node.init, exec_ctx_1) as TaintedLiteral;
+                    init_stmt = t.expressionStatement(get_repr(init_expr));
+                }
+
                 this.return_stmt_flag = initial_return_stmt_flag;
             }
 
@@ -1973,7 +1982,16 @@ export class TaintInterpreter {
                 if (node.init) {
                     const initial_return_stmt_flag = this.return_stmt_flag;
                     this.return_stmt_flag = true;
-                    init_stmt = this.eval(node.init, ctx) as t.VariableDeclaration | t.Expression;
+
+                    if (t.isVariableDeclaration(node.init)) {
+                        // VariableDeclaration -> eval returns VariableDeclaration
+                        init_stmt = this.eval(node.init, ctx) as t.VariableDeclaration;
+                    } else {
+                        // Expression -> eval returns TaintedLiteral, extract expression
+                        const init_expr = this.eval(node.init, ctx) as TaintedLiteral;
+                        init_stmt = get_repr(init_expr);
+                    }
+
                     this.return_stmt_flag = initial_return_stmt_flag;
                 }
 
@@ -2022,11 +2040,7 @@ export class TaintInterpreter {
 
             // Not tainted - prepend init statement to the block if it exists
             if (init_stmt) {
-                if (t.isStatement(init_stmt)) {
-                    block_stmts.unshift(init_stmt);
-                } else {
-                    block_stmts.unshift(t.expressionStatement(init_stmt));
-                }
+                block_stmts.unshift(init_stmt);
             }
 
             const encapsulated_blocks = t.blockStatement(block_stmts);
