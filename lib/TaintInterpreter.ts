@@ -1813,7 +1813,6 @@ export class TaintInterpreter {
          *     label?: Identifier | null
          * }
          */
-        // Note: Ensure `break_exec_ctx.environment.taint_parent_writes = true;` is correct and ....taint_parent_writes is idempotent
         if (t.isBreakStatement(node)) {
             const BREAKABLE_ENVIRONMENTS = ['ForInStatement', 'SwitchCase', 'SwitchStatement', 'ForStatement', 'DoWhileStatement', 'WhileStatement', 'LabeledStatement']
             
@@ -1821,7 +1820,9 @@ export class TaintInterpreter {
             let label = node.label?.name;
             let break_exec_ctx: ExecutionContext | undefined;
             for (let i = this.callstack.length - 1; i >= 0; i--) {
-                if ((label && this.callstack[i]?.name === label) || (!label && BREAKABLE_ENVIRONMENTS.includes(this.callstack[i]?.type))) {
+                if ((label && this.callstack[i]?.name === label) || 
+                    (!label && BREAKABLE_ENVIRONMENTS.includes(this.callstack[i]?.type))
+                    ) {
                     break_exec_ctx = this.callstack[i];
                     break;
                 }
@@ -1840,7 +1841,6 @@ export class TaintInterpreter {
                     }
 
                     return;
-
                 } else { // Untainted environment - Keep removing environments until a BREAKABLE ENVIRONMENT is hit
                     while (!BREAKABLE_ENVIRONMENTS.includes((this.callstack.pop() as ExecutionContext)?.type)) {
                         if (this.callstack.length === 0) {
@@ -1848,14 +1848,13 @@ export class TaintInterpreter {
                         }
                     }
 
-                    // Add to AST
-
-                    // const break_stmt = t.breakStatement(null);
-
-                    // return this.append_ast(break_stmt);
                     return;
                 }
             } else { // Tainted Environment
+                // Since we are in a tainted environment:
+                // 1. Break out of contexts until out of environment
+                // 2. Set outer context to tainted -> taint_parent_writes = true
+                // 3. Add berak statement
                 while (!(this.callstack.pop() as ExecutionContext).environment.is_tainted());
 
                 break_exec_ctx.environment.taint_parent_writes = true; // Taint the environment just before this
