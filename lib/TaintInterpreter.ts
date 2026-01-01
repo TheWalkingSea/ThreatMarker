@@ -1369,6 +1369,11 @@ export class TaintInterpreter {
                 // Remove ExecutionContext (only if it hasn't been popped by a return statement)
                 self.safe_pop_context(exec_ctx);
 
+                // If there was a return in a tainted environment, the return value is uncertain
+                if (env.taint_parent_writes) {
+                    self.returnValue.isTainted = true;
+                }
+
                 // @ts-ignore - Ignore `this` error
                 return new.target ? self : self.returnValue; // When ran with new, return this
             }
@@ -1473,6 +1478,11 @@ export class TaintInterpreter {
 
                 // Remove ExecutionContext (only if it hasn't been popped by a return statement)
                 self.safe_pop_context(exec_ctx);
+
+                // If there was a return in a tainted environment, the return value is uncertain
+                if (env.taint_parent_writes) {
+                    self.returnValue.isTainted = true;
+                }
 
                 // @ts-ignore
                 return new.target ? self : self.returnValue;
