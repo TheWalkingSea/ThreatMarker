@@ -1854,7 +1854,7 @@ export class TaintInterpreter {
                 // Since we are in a tainted environment:
                 // 1. Break out of contexts until out of environment
                 // 2. Set outer context to tainted -> taint_parent_writes = true
-                // 3. Add berak statement
+                // 3. Add break statement
                 while (!(this.callstack.pop() as ExecutionContext).environment.is_tainted());
 
                 break_exec_ctx.environment.taint_parent_writes = true; // Taint the environment just before this
