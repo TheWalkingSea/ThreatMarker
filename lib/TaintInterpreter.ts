@@ -1592,10 +1592,50 @@ export class TaintInterpreter {
          */
         if (t.isReturnStatement(node)) {
             if (node.argument) this.returnValue = this.eval(node.argument, ctx) as TaintedLiteral;
-            this.callstack.pop(); // Escape function
+
+            // Find the function context we're returning from
+            let func_exec_ctx: ExecutionContext | undefined;
+            for (let i = this.callstack.length - 1; i >= 0; i--) {
+                if (this.callstack[i].type === 'FunctionExpression' || this.callstack[i].type === 'FunctionDeclaration') {
+                    func_exec_ctx = this.callstack[i];
+                    break;
+                }
+            }
+
+            if (!func_exec_ctx) {
+                throw new Error("ReturnStatement outside of function");
+            }
+
+            // Check if there's ANY tainted environment between current context and function context
+            let inTaintedEnv = false;
+            for (let i = this.callstack.length - 1; i >= 0; i--) {
+                if (this.callstack[i] === func_exec_ctx) break;
+                if (this.callstack[i].environment.is_tainted()) {
+                    inTaintedEnv = true;
+                    break;
+                }
+            }
+
+            if (!inTaintedEnv) {
+                // Untainted environment - actually break out of execution
+                // Pop contexts until we escape the function context
+                while (this.callstack.length > 0) {
+                    const top = this.callstack.pop();
+                    if (!top || top.type === 'FunctionExpression' || top.type === 'FunctionDeclaration') {
+                        break; // Stop after popping the function context
+                    }
+                }
+            } else {
+                // Tainted environment - pop contexts until we find a tainted environment
+                while (!(this.callstack.pop() as ExecutionContext).environment.is_tainted());
+
+                // Mark function environment to taint subsequent writes
+                func_exec_ctx.environment.taint_parent_writes = true;
+            }
 
             // Add to AST
-            const return_stmt = t.returnStatement(get_repr(this.returnValue));
+            const return_arg = node.argument ? get_repr(this.returnValue) : null;
+            const return_stmt = t.returnStatement(return_arg);
             return this.append_ast(return_stmt);
         }
 
