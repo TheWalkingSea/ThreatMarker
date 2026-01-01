@@ -1419,6 +1419,102 @@ export class TaintInterpreter {
             return name ? self.append_ast(func_decl) : func_decl;
         }
 
+        /**
+         *    id?: Identifier | null,
+         *    params: Array<Identifier | Pattern | RestElement>,
+         *    body: BlockStatement,
+         *    generator: boolean,
+         *    async: boolean,
+         *    predicate?: DeclaredPredicate | InferredPredicate | null
+         *}
+         */
+        // TODO: 
+        // Correct implementation of `this` object
+        // arguments is a list of mixed Tainted and Untainted variables
+        // toString method on functions
+        // Support all argument types (...args)
+        if (t.isFunctionExpression(node)) {
+            if (node.generator || node.async) throw new NotImplementedException("Generator or Async FunctionExpression is not supported");
+            if (t.isRestElement(node.params[0]) || t.isPattern(node.params[0])) throw new NotImplementedException("RestElement and Patterns not supported for FunctionExpressions");
+            if (node.id && !t.isIdentifier(node.id)) throw new NotImplementedException(`FunctionExpression ID is of type ${typeof node.id} which is not supported`)
+
+            let name = node.id ? node.id.name : null;
+
+            // Function implementation
+            const params = (node.params as Array<t.Identifier>).map((param) => param.name);
+            const self = this;
+            const parent_env = ctx.environment;
+
+            // Runner function (same as FunctionDeclaration)
+            const runner = function(args: Array<TaintedLiteral>, parent_env: Environment) {
+                const activation_record: Map<string, TaintedLiteral | IArguments> = new Map();
+                for (let i = 0;i < params.length; i++) {
+                    activation_record.set(params[i], args[i]);
+                }
+
+                activation_record.set('arguments', {
+                    node: t.identifier('arguments'),
+                    isTainted: true
+                });
+
+                const env = new Environment(activation_record, parent_env, false, false);
+                const exec_ctx = new ExecutionContext(self, env, 'FunctionExpression');
+                self.callstack.push(exec_ctx);
+
+                self.returnValue = {
+                    value: null,
+                    isTainted: false
+                };
+
+                const initial_return_stmt_flag = self.return_stmt_flag;
+                self.return_stmt_flag = true;
+                self.eval(node.body, exec_ctx);
+                self.return_stmt_flag = initial_return_stmt_flag;
+
+                // Remove ExecutionContext (only if it hasn't been popped by a return statement)
+                self.safe_pop_context(exec_ctx);
+
+                // @ts-ignore
+                return new.target ? self : self.returnValue;
+            }
+
+            // Build simplified body
+            const record: Map<string, TaintedLiteral> = new Map();
+            for (let param of params) {
+                record.set(param, {
+                    node: t.identifier(param),
+                    isTainted: true
+                })
+            }
+            record.set('arguments', {
+                node: t.identifier('arguments'),
+                isTainted: true
+            });
+
+            const env = new Environment(record, null, false, false, true);
+            const exec_ctx = new ExecutionContext(self, env, 'FunctionExpression');
+            self.callstack.push(exec_ctx);
+
+            const initial_return_stmt_flag = self.return_stmt_flag;
+            self.return_stmt_flag = true;
+            const body = self.eval(node.body, exec_ctx) as t.BlockStatement;
+            self.return_stmt_flag = initial_return_stmt_flag;
+
+            self.safe_pop_context(exec_ctx);
+
+            // Return as TaintedLiteral with the runner function
+            const func_expr = t.functionExpression(
+                name ? t.identifier(name) : null,
+                node.params,
+                body
+            );
+
+            return {
+                node: func_expr,
+                value: runner,
+                isTainted: false
+            };
+        }
 
         /**
          * {
