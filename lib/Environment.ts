@@ -63,6 +63,12 @@ export class Environment {
                 node: t.identifier(name),
                 isTainted: true
             });
+            // Store the actual value locally so subsequent references in this block can be simplified
+            this.record.set(name, {
+                value: value,
+                node: node,
+                isTainted: isTainted
+            });
             return;
         }
 

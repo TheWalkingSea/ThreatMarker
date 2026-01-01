@@ -1918,14 +1918,17 @@ export class TaintInterpreter {
                 let body: t.BlockStatement;
                 let test_stmt: TaintedLiteral;
                 while (true) {
-                
+                    // Clear local environment to prevent infinite loops from persisting local values
+                    env.getLocalRecord().clear();
+
                     const initial_return_stmt_flag = this.return_stmt_flag;
                     this.return_stmt_flag = true; // returns the block instead of result
 
                     const newbody = this.eval(node.body, exec_ctx) as t.BlockStatement;
                     this.return_stmt_flag = initial_return_stmt_flag;
 
-                    const new_test_stmt = this.eval(node.test, exec_ctx) as TaintedLiteral;
+                    // Evaluate test in parent context to avoid finding locally-stored variables
+                    const new_test_stmt = this.eval(node.test, ctx) as TaintedLiteral;
 
                     // Check idempotency
                     // @ts-ignore
@@ -1938,6 +1941,7 @@ export class TaintInterpreter {
 
                 // Remove ExecutionContext
                 this.safe_pop_context(exec_ctx);
+
 
                 const while_stmt = t.whileStatement(
                     get_repr(test_stmt),
@@ -1995,6 +1999,8 @@ export class TaintInterpreter {
                 let body: t.BlockStatement;
                 let test_stmt: TaintedLiteral;
                 while (true) {
+                    // Clear local environment to prevent infinite loops from persisting local values
+                    env.getLocalRecord().clear();
 
                     const initial_return_stmt_flag = this.return_stmt_flag;
                     this.return_stmt_flag = true; // returns the block instead of result
@@ -2002,7 +2008,8 @@ export class TaintInterpreter {
                     const newbody = this.eval(node.body, exec_ctx) as t.BlockStatement;
                     this.return_stmt_flag = initial_return_stmt_flag;
 
-                    const new_test_stmt = this.eval(node.test, exec_ctx) as TaintedLiteral;
+                    // Evaluate test in parent context to avoid finding locally-stored variables
+                    const new_test_stmt = this.eval(node.test, ctx) as TaintedLiteral;
 
                     // Check idempotency
                     // @ts-ignore
@@ -2132,6 +2139,8 @@ export class TaintInterpreter {
                 let test_stmt: TaintedLiteral | undefined;
                 let update_stmt: t.Expression | null = null;
                 while (true) {
+                    // Clear local environment to prevent infinite loops from persisting local values
+                    env.getLocalRecord().clear();
 
                     const initial_return_stmt_flag = this.return_stmt_flag;
                     this.return_stmt_flag = true; // returns the block instead of result
@@ -2139,7 +2148,7 @@ export class TaintInterpreter {
                     const newbody = this.eval(node.body, exec_ctx) as t.BlockStatement;
                     this.return_stmt_flag = initial_return_stmt_flag;
 
-                    const new_test_stmt = node.test ? this.eval(node.test, exec_ctx) as TaintedLiteral : { value: true, isTainted: false };
+                    const new_test_stmt = node.test ? this.eval(node.test, ctx) as TaintedLiteral : { value: true, isTainted: false };
                     const new_update_stmt = node.update ? this.eval(node.update, exec_ctx) as TaintedLiteral : null;
 
                     // Check idempotency
