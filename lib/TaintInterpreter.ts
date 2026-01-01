@@ -4,8 +4,7 @@ import { NotImplementedException } from "./NotImplementedException";
 import { DeobfuscatorException } from "./DeobfuscatorException";
 import { ReferenceException } from "./ReferenceException";
 import * as t from '@babel/types';
-import { get_repr } from './../utils/to_value';
-import { format } from "node:path";
+import { get_repr, Value } from './../utils/to_value';
 
 export class TaintInterpreter {
     callstack: Array<ExecutionContext>;
@@ -1409,7 +1408,7 @@ export class TaintInterpreter {
             self.return_stmt_flag = initial_return_stmt_flag;
 
             // Remove ExecutionContext
-            self.callstack.pop()
+            self.safe_pop_context(exec_ctx);
 
             // Adding function to AST
             const func_decl = t.functionDeclaration(
