@@ -5,12 +5,13 @@ function returnNothing() {
   return;
 }
 
-returnNothing();
+returnNothing(), null;
+
 function emptyReturn() {
   return;
 }
 
-emptyReturn();
+emptyReturn(), null;
 
 function conditionalEmpty(flag) {
   if (flag) {
@@ -19,5 +20,5 @@ function conditionalEmpty(flag) {
   return 42;
 }
 
-conditionalEmpty(true);
+conditionalEmpty(true), null;
 conditionalEmpty(false), 42;

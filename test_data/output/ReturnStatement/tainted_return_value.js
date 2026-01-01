@@ -15,7 +15,7 @@ function returnMixed(flag) {
 
 returnMixed(true), 42;
 
-returnMixed(false), window;
+returnMixed(false);
 
 function computeTainted() {
   var x = document;

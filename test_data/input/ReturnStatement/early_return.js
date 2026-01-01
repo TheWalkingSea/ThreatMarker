@@ -16,9 +16,11 @@ function multipleReturns(flag) {
 
     if (flag === 1) {
         result = 10;
+        result;
         return result;
         result = 999; // Should not execute
     }
+    result;
 
     if (flag === 2) {
         result = 20;

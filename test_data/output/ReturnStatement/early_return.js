@@ -12,8 +12,10 @@ function multipleReturns(flag) {
 
   if (flag === 1) {
     result = 10;
+    10;
     return 10;
   }
+  result;
 
   if (flag === 2) {
     result = 20;
