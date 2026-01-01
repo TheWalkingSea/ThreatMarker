@@ -2072,7 +2072,13 @@ export class TaintInterpreter {
                     exec_ctx_1
                 ) as t.BlockStatement;
 
-                // Add update expression to the block if it exists
+                // Check if return statement popped the context
+                if (exec_ctx_1 !== this.callstack[this.callstack.length - 1]) {
+                    block_stmts.push(evaluated_block);
+                    break;
+                }
+
+                // Add update expression to the block if it exists (only if we didn't return)
                 if (node.update) {
                     const initial_return_stmt_flag = this.return_stmt_flag;
                     this.return_stmt_flag = true;
@@ -2084,10 +2090,6 @@ export class TaintInterpreter {
                 }
 
                 block_stmts.push(evaluated_block);
-
-                if (exec_ctx_1 !== this.callstack[this.callstack.length - 1]) {
-                    break;
-                }
 
                 // Re-evaluate test
                 if (node.test) {
