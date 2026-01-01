@@ -14,11 +14,11 @@ export function Value(value: any): t.Literal | t.Expression {
         return t.identifier('undefined');  // Handle undefined
     } else if (value instanceof RegExp) {
         return t.regExpLiteral(value.source, value.flags);
-    } else if (typeof value == 'object') {
+    } else if (Array.isArray(value)) {
         return t.arrayExpression(
             value.map((x: TaintedLiteral) => get_repr(x))
         );
-    } else if (typeof value == 'bigint') {
+    } else if (typeof value === 'bigint') {
         return t.bigIntLiteral(value.toString());
     } else {
         console.debug(value);
