@@ -118,6 +118,7 @@ describe("FunctionDeclaration", () => {
 });
 describe("FunctionExpression", () => {
     test('Anonymous Functions', test_ast('FunctionExpression/anonymous_function'));
+    test('For Loop -> Anonymous Functions', test_ast('FunctionExpression/forloop_anonymous'));
 });
 describe("CallExpression", () => {
     test('CallExpression', test_ast('CallExpression/CallExpression'));
