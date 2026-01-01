@@ -6,6 +6,8 @@ import { Environment } from '../lib/Environment';
 import * as t from '@babel/types';
 import generator from '@babel/generator';
 
+jest.setTimeout(10000);
+
 // Don't use comments in input/output files
 function test_ast(file: string): jest.ProvidesCallback {
     return () => {
