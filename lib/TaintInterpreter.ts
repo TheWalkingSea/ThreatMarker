@@ -1535,6 +1535,8 @@ export class TaintInterpreter {
          *     typeParameters?: TSTypeParameterInstantiation | null
          * }
          */
+        // Note: Embed tainted variables in the sequence expression
+        // Despite being tainted, they still have a visual representation
         if (t.isCallExpression(node)) {
             // Evaluate the callee to get the function
             const callee_tl = this.eval(node.callee, ctx) as TaintedLiteral;
@@ -1578,6 +1580,7 @@ export class TaintInterpreter {
             // Return value is tainted
             return {
                 node: simplified_call,
+                value: result.value,
                 isTainted: true
             };
         }
