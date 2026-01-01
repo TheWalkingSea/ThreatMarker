@@ -188,3 +188,7 @@ describe("ObjectExpression", () => {
     test('Initialization Spread Operator', test_ast('ObjectExpression/init_spread'));
     test('Non-Computed Access', test_ast('ObjectExpression/non_computed_access'));
 });
+describe("ReturnStatement", () => {
+    test('Tainted Environment Test', test_ast('ReturnStatement/taint_env'));
+    test('Tainted Environment Nested Test', test_ast('ReturnStatement/taint_env_nested'));
+});
