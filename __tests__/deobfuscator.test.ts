@@ -49,7 +49,6 @@ function test_ast(file: string): jest.ProvidesCallback {
     }
 }
 
-
 test('VariableDeclaration, VariableDeclarator', test_ast('variable_declaration'))
 test('Identifier', test_ast('identifier'))
 test('Sequence Expression', test_ast('sequence_exp'))
@@ -191,4 +190,11 @@ describe("ObjectExpression", () => {
 describe("ReturnStatement", () => {
     test('Tainted Environment Test', test_ast('ReturnStatement/taint_env'));
     test('Tainted Environment Nested Test', test_ast('ReturnStatement/taint_env_nested'));
+    test('Untainted Basic', test_ast('ReturnStatement/untainted_basic'));
+    test('Early Return', test_ast('ReturnStatement/early_return'));
+    test('Loop Return', test_ast('ReturnStatement/loop_return'));
+    test('Tainted Return Value', test_ast('ReturnStatement/tainted_return_value'));
+    test('Tainted Loop Return', test_ast('ReturnStatement/tainted_loop_return'));
+    test('Nested Functions', test_ast('ReturnStatement/nested_functions'));
+    test('Return Undefined', test_ast('ReturnStatement/return_undefined'));
 });
