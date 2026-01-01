@@ -1538,25 +1538,36 @@ export class TaintInterpreter {
             }
 
             // Evaluate arguments
-            const args = node.arguments.map((n) => this.eval(n, ctx));
+            const args = node.arguments.map((n) => this.eval(n, ctx) as TaintedLiteral);
 
             // Call the function
             const func = callee_tl.value as Function;
             const result: TaintedLiteral = func(args, ctx.environment);
 
+            // Rebuild the call expression with simplified arguments
+            const simplified_call = t.callExpression(
+                node.callee,
+                args.map((arg) => get_repr(arg))
+            );
+
             // Return as sequence expression if untainted
             if (!result.isTainted) {
                 const seq_expr = t.sequenceExpression([
-                    node,
-                    get_repr(result)
+                    simplified_call,
+                    // Do not use get_repr since we do not want the 
+                    // nodal representation, just the pure Literal value
+                    Value(result.value)
                 ]);
-                result.node = seq_expr;
-                return result;
+                return {
+                    node: seq_expr,
+                    value: result.value,
+                    isTainted: false
+                }
             }
 
             // Return value is tainted
             return {
-                node: node,
+                node: simplified_call,
                 isTainted: true
             };
         }
