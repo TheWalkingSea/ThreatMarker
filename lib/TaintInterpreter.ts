@@ -2015,6 +2015,9 @@ export class TaintInterpreter {
             }
 
             // Not tainted
+            if (block_stmts.length === 0) {
+                return; // Empty loop - don't add anything to AST
+            }
             const encapsulated_blocks = t.blockStatement(block_stmts);
             return this.append_ast(encapsulated_blocks);
         }
@@ -2103,6 +2106,9 @@ export class TaintInterpreter {
             }
 
             // Not tainted
+            if (block_stmts.length === 0) {
+                return; // Empty loop - don't add anything to AST
+            }
             const encapsulated_blocks = t.blockStatement(block_stmts);
             return this.append_ast(encapsulated_blocks);
         }
@@ -2259,6 +2265,10 @@ export class TaintInterpreter {
             // Not tainted - prepend init statement to the block if it exists
             if (init_stmt) {
                 block_stmts.unshift(init_stmt);
+            }
+
+            if (block_stmts.length === 0) {
+                return; // Empty loop - don't add anything to AST
             }
 
             const encapsulated_blocks = t.blockStatement(block_stmts);
