@@ -3,8 +3,6 @@ var b = document;
 
 while (b > 0) {
     3;
-
-    continue;
 }
 
 3;

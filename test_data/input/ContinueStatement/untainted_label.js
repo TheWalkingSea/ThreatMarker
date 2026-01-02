@@ -1,6 +1,6 @@
 var a = 10;
 
-outer_loop:
+outer_loop: 
 while (a > 0) {
     a -= 5;
     a;
