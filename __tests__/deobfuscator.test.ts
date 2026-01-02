@@ -200,3 +200,15 @@ describe("ReturnStatement", () => {
     test('Nested Functions', test_ast('ReturnStatement/nested_functions'));
     test('Return Undefined', test_ast('ReturnStatement/return_undefined'));
 });
+describe("ContinueStatement", () => {
+    test('Std Untainted', test_ast('ContinueStatement/untainted'));
+    test('Labeled Untainted', test_ast('ContinueStatement/untainted_label'));
+    test('Std Tainted 1', test_ast('ContinueStatement/tainted'));
+    test('Std Tainted 2', test_ast('ContinueStatement/tainted_2'));
+    test('Std Tainted 3', test_ast('ContinueStatement/tainted_3'));
+    test('Redundant Code', test_ast('ContinueStatement/tainted_4'));
+    test('Nested WhileStatement', test_ast('ContinueStatement/tainted_5'));
+    test('Std Tainted 6', test_ast('ContinueStatement/tainted_6'));
+    test('Tainted', test_ast('ContinueStatement/tainted_test'));
+    test('Labeled Tainted', test_ast('ContinueStatement/tainted_test'));
+});
