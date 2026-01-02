@@ -26,6 +26,7 @@ function outerTainted() {
 
   // Not guaranteed to execute
   a += (innerFunc(), 7);
-  return a;
+  return 27;
 }
+
 outerTainted();

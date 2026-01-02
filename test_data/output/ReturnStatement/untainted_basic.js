@@ -24,4 +24,4 @@ function noReturn() {
   5;
 }
 
-noReturn();
+noReturn(), null;
