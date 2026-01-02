@@ -2476,119 +2476,146 @@ export class TaintInterpreter {
             }
         }
 
-        // if (t.isObjectExpression(node)) {
-        //     const obj = {}; // The literal representation
-        //     let properties: Array<t.ObjectMethod | t.ObjectProperty | t.SpreadElement> = []; // The AST representation
-        //     for (const property of node.properties) {
-        //         if (t.isObjectProperty(property)) {
-        //             const value = this.eval(property.value, ctx) as TaintedLiteral;
+        if (t.isObjectExpression(node)) {
+            const obj = {}; // The literal representation
+            let properties: Array<t.ObjectMethod | t.ObjectProperty | t.SpreadElement> = []; // The AST representation
+            for (const property of node.properties) {
+                if (t.isObjectProperty(property)) {
+                    const value = this.eval(property.value, ctx) as TaintedLiteral;
 
-        //             if (property.computed) { // { [a]: 2 } - `a` must be computed
-        //                 const key = this.eval(property.key, ctx) as TaintedLiteral;
-        //                 if (key.isTainted) { // No object added to obj; uncomputed key added to properties
-        //                     properties.push(t.objectProperty(
-        //                         get_repr(key),           // Key
-        //                         get_repr(value),         // value
-        //                         true,                    // computed
-        //                         false                    // shorthand
-        //                     ));
-        //                 } else { // Key is replaced with value and added to obj & properties
-        //                     properties.push(t.objectProperty(
-        //                         get_repr(key),           // Key
-        //                         get_repr(value),         // value
-        //                         false,                    // computed
-        //                         false                    // shorthand
-        //                     ));
+                    if (property.computed) { // { [a]: 2 } - `a` must be computed
+                        const key = this.eval(property.key, ctx) as TaintedLiteral;
+                        if (key.isTainted) { // Object could possibly overwrite another variable
 
-        //                     Object.defineProperty(
-        //                         obj,
-        //                         key.value,
-        //                         { value }
-        //                     );
-        //                 }
-        //             }
-        //             else {
-        //                 // { x } -> { x: x }; We strip off the shorthand if present
-        //                 // { x: y }
-        //                 const key = (property.key as t.Identifier)
-        //                 properties.push(t.objectProperty(
-        //                     key,                     // key
-        //                     get_repr(value),         // value
-        //                     false,                   // computed
-        //                     false                    // shorthand
-        //                 ));
+                            // Remove all existing ObjectProperties
+                            properties = properties.filter((value, i) => !t.isObjectProperty(value))
+                            
+                            properties.push(t.objectProperty(
+                                get_repr(key),           // Key
+                                get_repr(value),         // value
+                                true,                    // computed
+                                false                    // shorthand
+                            ));
+                        } else { // Key is replaced with value and added to obj & properties
+                            properties.push(t.objectProperty(
+                                get_repr(key),           // Key
+                                get_repr(value),         // value
+                                false,                    // computed
+                                false                    // shorthand
+                            ));
 
-        //                 Object.defineProperty(
-        //                     obj,
-        //                     key.name,
-        //                     { value }
-        //                 );
-        //             }
-        //         } else if (t.isObjectMethod(property)) {
-        //             let name;
-        //             if (property.computed) {
-        //                 const key = this.eval(property.key, ctx) as TaintedLiteral;                      
-        //                 if (key.isTainted) { // No object added to obj; uncomputed key added to properties
-        //                         properties.push(t.objectMethod(
-        //                             property.kind,           // Kind
-        //                             get_repr(key),           // Key
-        //                             get_repr(value),         // value
-        //                             true,                    // computed
-        //                             false                    // shorthand
-        //                         ));
-        //                 } else { // Key is replaced with value and added to obj & properties
-        //                     properties.push(t.objectMethod(
-        //                         property.kind,           // Kind
-        //                         get_repr(key),           // Key
-        //                         get_repr(value),         // value
-        //                         false,                   // computed
-        //                         false                    // shorthand
-        //                     ));
+                            Object.defineProperty(
+                                obj,
+                                key.value,
+                                {
+                                    value,
+                                    writable: true,
+                                    enumerable: true,
+                                    configurable: true
+                                }
+                            );
+                        }
+                    }
+                    else {
+                        // { x } -> { x: x }; We strip off the shorthand if present (key = value = x)
+                        // { x: y }
+                        const key = (property.key as t.Identifier)
+                        properties.push(t.objectProperty(
+                            key,                     // key
+                            get_repr(value),         // value
+                            false,                   // computed
+                            false                    // shorthand
+                        ));
 
-        //                     Object.defineProperty(
-        //                         obj,
-        //                         key.value,
-        //                         { value }
-        //                     );
-        //                 }
-        //             } else { // Not computed
-        //                 const key = (property.key as t.Identifier)
-        //                 properties.push(t.objectMethod(
-        //                     property.kind,           // Kind
-        //                     key,                     // key
-        //                     get_repr(value),         // value
-        //                     false,                   // computed
-        //                     false                    // shorthand
-        //                 ));
+                        Object.defineProperty(
+                            obj,
+                            key.name,
+                            {
+                                value,
+                                writable: true,
+                                enumerable: true,
+                                configurable: true
+                            }
+                        );
+                    }
+                } else if (t.isObjectMethod(property)) {
+                    // ObjectMethod: { foo() {}, get bar() {} }
+                    // Methods need to create runtime functions and AST nodes
 
-        //                 Object.defineProperty(
-        //                     obj,
-        //                     key.name,
-        //                     { value }
-        //                 );
-        //             }
+                    if (property.computed) {
+                        const key = this.eval(property.key, ctx) as TaintedLiteral;
 
+                        // Create the AST node for the method
+                        properties.push(t.objectMethod(
+                            property.kind,
+                            get_repr(key),
+                            property.params,
+                            property.body,
+                            true  // computed
+                        ));
 
-        //             const func_expr = t.functionExpression(
-        //                 property.key, 
-        //                 property.params, 
-        //                 property.body
-        //             );
-        //         } else if (t.isSpreadElement(property)) {
-        //             throw new NotImplementedException("SpreadElement has not been implemented into ObjectExpression");
-        //         }
-        //     }
+                        // Add to runtime object if key is untainted
+                        if (!key.isTainted) {
+                            // Create runtime function
+                            const func_expr = t.functionExpression(
+                                null,  // anonymous
+                                property.params,
+                                property.body
+                            );
 
-        //     const obj_expr_node = t.objectExpression(
-        //         properties
-        //     )
+                            // TODO: Need to evaluate the function to get runtime value
+                            // For now, just add placeholder
+                            Object.defineProperty(obj, key.value, {
+                                value: func_expr,  // Placeholder - should be actual function
+                                writable: true,
+                                enumerable: true,
+                                configurable: true
+                            });
+                        }
+                    } else {
+                        // Non-computed method key
+                        const key = property.key as t.Identifier;
 
-        //     return {
-        //         node: obj_expr_node,
-        //         value: obj,
-        //         isTainted: false
-        //     };
-        // }
+                        // Create the AST node for the method
+                        properties.push(t.objectMethod(
+                            property.kind,
+                            key,
+                            property.params,
+                            property.body,
+                            false  // not computed
+                        ));
+
+                        // Create runtime function
+                        const func_expr = t.functionExpression(
+                            null,  // anonymous
+                            property.params,
+                            property.body
+                        );
+
+                        // TODO: Need to evaluate the function to get runtime value
+                        // For now, just add placeholder
+                        Object.defineProperty(obj, key.name, {
+                            value: func_expr,  // Placeholder - should be actual function
+                            writable: true,
+                            enumerable: true,
+                            configurable: true
+                        });
+                    }
+                } else if (t.isSpreadElement(property)) {
+                    throw new NotImplementedException("SpreadElement has not been implemented into ObjectExpression");
+                }
+            }
+
+            const obj_expr_node = t.objectExpression(
+                properties
+            )
+
+            return {
+                node: obj_expr_node,
+                value: obj,
+                isTainted: false
+            };
+        }
         
         throw new NotImplementedException(node.type)
     }
