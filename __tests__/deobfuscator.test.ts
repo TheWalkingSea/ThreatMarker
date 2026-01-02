@@ -78,12 +78,13 @@ describe("ConditionalExpression", () => {
     test('Untainted Condition (true)', test_ast('ConditionalExpression/untaint_true'));
     test('Nested Ternary', test_ast('ConditionalExpression/nested'));
 });
-describe("WhileLoop", () => {
-    test('Untainted Condition', test_ast('WhileLoop/untaint'));
-    test('Tainted Condition - External Write', test_ast('WhileLoop/taint_ext_write'));
-    test('Tainted Condition - External Write 2', test_ast('WhileLoop/taint_ext_write_2'));
-    test('Tainted Condition - External Read', test_ast('WhileLoop/taint_ext_read'));
-    test('Tainted Condition - Block Simplification', test_ast('WhileLoop/taint_int'));
+describe("WhileStatement", () => {
+    test('Untainted Condition', test_ast('WhileStatement/untaint'));
+    test('Tainted Condition - External Write', test_ast('WhileStatement/taint_ext_write'));
+    test('Tainted Condition - External Write 2', test_ast('WhileStatement/taint_ext_write_2'));
+    test('Tainted Condition - External Read', test_ast('WhileStatement/taint_ext_read'));
+    test('Tainted Condition - Block Simplification', test_ast('WhileStatement/taint_int'));
+    test('False Loop', test_ast('WhileStatement/false_loop'));
 });
 describe("DoWhileStatement", () => {
     test('Untainted Condition', test_ast('DoWhileStatement/untaint'));
