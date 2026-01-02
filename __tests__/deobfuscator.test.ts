@@ -211,5 +211,5 @@ describe("ContinueStatement", () => {
     test('Nested WhileStatement', test_ast('ContinueStatement/tainted_5'));
     test('Std Tainted 6', test_ast('ContinueStatement/tainted_6'));
     test('Tainted', test_ast('ContinueStatement/tainted_test'));
-    test('Labeled Tainted', test_ast('ContinueStatement/tainted_test'));
+    test('Labeled Tainted', test_ast('ContinueStatement/tainted_label'));
 });
