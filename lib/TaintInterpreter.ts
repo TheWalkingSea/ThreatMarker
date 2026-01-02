@@ -26,7 +26,8 @@ export class TaintInterpreter {
             'IfStatement': {
                 'taint_else_block': false,
             },
-            'error_state': t.blockStatement([]) // Temporarily save program state here before throwing an error - Used for Try-Except blocks
+            'error_state': t.blockStatement([]), // Temporarily save program state here before throwing an error - Used for Try-Except blocks
+            'continue_target': null as ExecutionContext | null // Track which loop/label the continue targets
         }
     }
 
@@ -1867,6 +1868,61 @@ export class TaintInterpreter {
             }
         }
 
+        if (t.isContinueStatement(node)) {
+            const CONTINUABLE_ENVIRONMENTS = ['ForInStatement', 'ForStatement', 'DoWhileStatement', 'WhileStatement', 'LabeledStatement']
+
+            // 1. Find loop's ExecutionContext being continued
+            let label = node.label?.name;
+            let continue_exec_ctx: ExecutionContext | undefined;
+            for (let i = this.callstack.length - 1; i >= 0; i--) {
+                if (label && this.callstack[i]?.name === label) {
+                    // Found a labeled statement - the actual loop is at i+1
+                    continue_exec_ctx = this.callstack[i + 1];
+                    break;
+                } else if (!label && CONTINUABLE_ENVIRONMENTS.includes(this.callstack[i]?.type)) {
+                    // Found an unlabeled loop
+                    continue_exec_ctx = this.callstack[i];
+                    break;
+                }
+            }
+
+            if (typeof continue_exec_ctx === 'undefined') {
+                throw new ReferenceException(`LabelStatement: ${label}`);
+            }
+
+            if (!ctx.environment.is_tainted_environment(continue_exec_ctx.environment)) { // Non-tainted Environment
+                // Set target to the actual loop to continue
+                this.flags.continue_target = continue_exec_ctx;
+
+                // Pop contexts including the loop context (same as break)
+                if (label) {
+                    while ((this.callstack.pop() as ExecutionContext)?.name !== label) {
+                        if (this.callstack.length === 0) {
+                            throw new ReferenceException(`LabelStatement: ${label}`);
+                        }
+                    }
+                } else {
+                    while (!CONTINUABLE_ENVIRONMENTS.includes((this.callstack.pop() as ExecutionContext)?.type)) {
+                        if (this.callstack.length === 0) {
+                            throw new Error("`continue` Statement called outside of a loop");
+                        }
+                    }
+                }
+
+                return;
+            } else { // Tainted Environment
+                while (!(this.callstack.pop() as ExecutionContext).environment.is_tainted());
+
+                continue_exec_ctx.environment.taint_parent_writes = true; // Taint the environment just before this
+
+                const continue_stmt = t.continueStatement(
+                    label ? t.identifier(label) : null
+                )
+
+                return this.append_ast(continue_stmt);
+            }
+        }
+
         // Loops
         /**
          * {
@@ -1896,7 +1952,15 @@ export class TaintInterpreter {
                 block_stmts.push(evaluated_block);
 
                 if (exec_ctx_1 !== this.callstack[this.callstack.length - 1]) {
-                    break;
+                    // Context was popped - either break or continue
+                    if (this.flags.continue_target === exec_ctx_1) {
+                        // Continue targeting this loop: re-push context and continue loop
+                        this.flags.continue_target = null;
+                        this.callstack.push(exec_ctx_1);
+                    } else {
+                        // Break, return, or continue targeting outer loop: exit this loop
+                        break;
+                    }
                 }
 
                 test = this.eval(node.test, ctx) as TaintedLiteral; // Re-evaluate test
@@ -1977,7 +2041,15 @@ export class TaintInterpreter {
                 block_stmts.push(evaluated_block);
 
                 if (exec_ctx_1 !== this.callstack[this.callstack.length - 1]) {
-                    break;
+                    // Context was popped - either break or continue
+                    if (this.flags.continue_target === exec_ctx_1) {
+                        // Continue targeting this loop: re-push context and continue loop
+                        this.flags.continue_target = null;
+                        this.callstack.push(exec_ctx_1);
+                    } else {
+                        // Break, return, or continue targeting outer loop: exit this loop
+                        break;
+                    }
                 }
 
                 test = this.eval(node.test, ctx) as TaintedLiteral; // Evaluate test after body
@@ -2078,13 +2150,20 @@ export class TaintInterpreter {
                     exec_ctx_1
                 ) as t.BlockStatement;
 
-                // Check if return statement popped the context
+                // Check if return/break/continue statement popped the context
                 if (exec_ctx_1 !== this.callstack[this.callstack.length - 1]) {
-                    block_stmts.push(evaluated_block);
-                    break;
+                    if (this.flags.continue_target === exec_ctx_1) {
+                        // Continue targeting this loop: re-push context and continue loop (skip update)
+                        this.flags.continue_target = null;
+                        this.callstack.push(exec_ctx_1);
+                    } else {
+                        // Break, return, or continue targeting outer loop: exit this loop
+                        block_stmts.push(evaluated_block);
+                        break;
+                    }
                 }
 
-                // Add update expression to the block if it exists (only if we didn't return)
+                // Add update expression to the block if it exists (only if we didn't return/break/continue)
                 if (node.update) {
                     const initial_return_stmt_flag = this.return_stmt_flag;
                     this.return_stmt_flag = true;
